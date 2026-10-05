@@ -229,10 +229,11 @@ LlmCall       user_id, paper_id, task, model, prompt_version, tokens_in, tokens_
 |---|---|---|
 | 1 | PDF 업로드 → pdf.js 뷰어 + 3분할 레이아웃 + 블록 파싱 + 드래그→블록 매핑 | ✅ |
 | 2 | **문서 모델 보강** (LLM 없음): 문장 분리·오프셋, 텍스트 정규화(프론트·백 공유), 제목 level, 숨은 텍스트 필터, sha256 중복 방지, 언어 감지, 초록 추출, 드래그→문장 매핑, 문단 클릭 포커스 | ✅ |
+| 2.5 | **주소로 불러오기**: arXiv(주소·ID), PDF 직접 링크, 논문 페이지(`citation_pdf_url` 메타 태그), DOI(doi.org → 페이지 메타, 없으면 Semantic Scholar), 출처 메타데이터(저자·연도), 내부망 차단 | ✅ |
 | 3 | **LLM 계층 + 해설**: `llm.run`, 결과 캐시, 호출 로그·비용 표시, SSE 스트리밍, UserProfile, 단어·문장 해설, 문단 번역, 해설 기록 | |
 | 4 | **용어집·관련 언급** (LLM 없음): 약어·용어 추출, TermOccurrence, 관련 언급 탭, 약어 호버, KnownTerm 재사용 | |
 | 5 | **Q&A (C안) + 요약 범위**: BM25 색인, 기본/전체 모드, 출처 검증, 섹션·전체 요약 | |
-| 6 | 하이라이트·메모·내 용어장(Annotation), arXiv/DOI 불러오기, 참고문헌 연결·호버 | |
+| 6 | 하이라이트·메모·내 용어장(Annotation), 참고문헌 연결·호버 | |
 | 7 | 한국어 논문: kss·Kiwi TextProcessor, 한글 PDF 파싱 검증 | |
 
 ### 이후 후보
@@ -257,6 +258,18 @@ LlmCall       user_id, paper_id, task, model, prompt_version, tokens_in, tokens_
 - **문장 id**: `"{block_id}:{idx}"` (예: `p3-12:2`).
 - **재파싱**: `PARSER_VERSION`을 올린 뒤 `uv run python -m app.scripts.reparse`.
 
+## 2.5단계 구현 메모 (주소로 불러오기)
+- 입력 판별 순서: arXiv ID/주소 → DOI → http(s) 주소. 주소가 PDF면 그대로, HTML이면 `citation_pdf_url` 메타 태그를 따라간다.
+  리다이렉트 끝이 arXiv거나 페이지에 `citation_arxiv_id`가 있으면 arXiv 경로로 처리한다.
+- DOI: `doi.org`가 보내는 논문 페이지의 메타 태그 → 없으면 Semantic Scholar의 공개 PDF(arXiv 버전이 있으면 arXiv 우선).
+  이메일·API 키가 필요 없다.
+- 메타데이터(제목·저자·연도·초록)는 출처 값을 파서 추측보다 우선한다. `Paper.metadata_source`가 있으면 재파싱해도 덮어쓰지 않는다.
+- 안전장치(`app/importing/fetch.py`): http(s)만, 공인 IP만(리다이렉트마다 다시 검사), 50MB, 30초, 리다이렉트 5회.
+  DNS rebinding은 막지 않는다 — 배포할 때 다시 본다.
+- 확인한 사이트: arXiv, ACL Anthology, NeurIPS proceedings, PMLR, JMLR PDF 링크, DOI(ACL).
+  **안 되는 곳**: OpenReview(자동 접근 차단, PDF·API 모두 403 — 우회하지 않는다), IEEE(JS로 그리는 페이지, 대부분 유료),
+  유료 저널(Nature 등).
+
 ## 알려진 한계 (현재 파서)
 - 표를 따로 구분하지 않는다. 작은 글씨 셀은 `figure`, 큰 셀은 `paragraph`로 분류된다.
 - 참고문헌 항목이 여러 블록으로 쪼개질 수 있다.
@@ -265,6 +278,7 @@ LlmCall       user_id, paper_id, task, model, prompt_version, tokens_in, tokens_
 - 스캔 PDF(텍스트 레이어 없음)는 OCR이 없어 블록이 비어 있다.
 - 줄끝 하이픈 제거가 진짜 하이픈까지 지운다(`high-` + `level` → `highlevel`).
 - 아래첨자·위첨자가 평문으로 합쳐진다(`h_{t-1}` → `ht−1`).
+- 여러 줄 제목이 블록 여러 개로 나뉘어 목차에 두 항목으로 나올 수 있다 (예: BERT).
 - 그림 블록 분류는 "40자 미만 + 본문보다 작은 글씨" 기준이라, 다이어그램 라벨이나 표 셀도 `figure`가 된다.
 
 ## 나중에 정할 것

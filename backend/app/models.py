@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import uuid4
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import JSON, Column, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -45,6 +45,13 @@ class Paper(SQLModel, table=True):
     page_count: int = 0
     language: str = Field(default="en", sa_column_kwargs={"server_default": "en"})
     abstract: str | None = None
+    authors: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, server_default="[]"))
+    year: int | None = None
+    arxiv_id: str | None = None
+    doi: str | None = None
+    # 제목·저자·초록을 출처에서 가져왔으면 그 출처 ("arxiv" | "citation_meta" | "semantic_scholar").
+    # 이 값이 있으면 재파싱해도 제목·초록을 파서 추측으로 덮어쓰지 않는다.
+    metadata_source: str | None = None
     # 숨은 텍스트가 발견된 블록 수
     hidden_text_count: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     parser_version: str | None = None
