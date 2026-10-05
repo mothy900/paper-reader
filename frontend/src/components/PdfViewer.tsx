@@ -1,14 +1,11 @@
 import * as pdfjs from 'pdfjs-dist'
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Block } from '../lib/api'
-import { api } from '../lib/api'
 import { useBlocks } from '../lib/queries'
 import { blockAtPoint, locateSelection, sentencesInRanges } from '../lib/focus'
+import { loadPdf } from '../lib/pdf'
 import { blocksForRects, selectionToPageRects } from '../lib/selection'
 import { useReader } from '../store'
-
-pdfjs.GlobalWorkerOptions.workerSrc = workerSrc
 
 interface PageSize {
   width: number
@@ -27,9 +24,8 @@ export function PdfViewer({ paperId }: { paperId: string }) {
   const downAt = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
-    const task = pdfjs.getDocument({ url: api.fileUrl(paperId) })
     let cancelled = false
-    task.promise
+    loadPdf(paperId)
       .then(async (pdf) => {
         const pages = await Promise.all(
           Array.from({ length: pdf.numPages }, (_, i) => pdf.getPage(i + 1)),
@@ -44,7 +40,6 @@ export function PdfViewer({ paperId }: { paperId: string }) {
       setDoc(null)
       setSizes([])
       setError(null)
-      void task.destroy()
     }
   }, [paperId])
 

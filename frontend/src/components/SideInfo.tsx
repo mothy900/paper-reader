@@ -1,4 +1,8 @@
+import { useEffect, useState } from 'react'
+import type { Block } from '../lib/api'
+import { renderRegion } from '../lib/pdf'
 import { useBlocks } from '../lib/queries'
+import { richPieces } from '../lib/richText'
 import type { Scope, SideTab } from '../store'
 import { useReader } from '../store'
 
@@ -85,16 +89,25 @@ function FocusView() {
               {section ? `${section.text} · ` : ''}
               {block.page}쪽 · {block.id}
             </button>
-            <ol className="sentences">
-              {block.sentences.map(([s, e], idx) => {
-                if (s >= range.end || e <= range.start) return null
-                return (
-                  <li key={idx}>
-                    <SentenceText text={block.text} start={s} end={e} mark={focus.source === 'selection' ? range : null} />
-                  </li>
-                )
-              })}
-            </ol>
+            {block.type === 'equation' && paperId ? (
+              <EquationImage key={block.id} paperId={paperId} block={block} />
+            ) : (
+              <ol className="sentences">
+                {block.sentences.map(([s, e], idx) => {
+                  if (s >= range.end || e <= range.start) return null
+                  return (
+                    <li key={idx}>
+                      <RichText
+                        text={block.text}
+                        start={s}
+                        end={e}
+                        mark={focus.source === 'selection' ? range : null}
+                      />
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
           </section>
         )
       })}
@@ -105,8 +118,43 @@ function FocusView() {
   )
 }
 
-/** 문장을 보여주고, 드래그한 부분은 강조한다 */
-function SentenceText({
+/**
+ * 수식은 PDF에서 텍스트로 되살리기 어려워(분수·첨자 배치가 사라진다) 원본 영역을 이미지로 보여준다.
+ * 추출된 텍스트는 접어서 함께 둔다.
+ */
+function EquationImage({ paperId, block }: { paperId: string; block: Block }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    renderRegion(paperId, block.page, block.bbox)
+      .then((url) => !cancelled && setSrc(url))
+      .catch(() => !cancelled && setFailed(true))
+    return () => {
+      cancelled = true
+    }
+  }, [paperId, block.page, block.bbox])
+
+  return (
+    <figure className="equation">
+      {src ? (
+        <img src={src} alt={block.text} />
+      ) : (
+        <p className="muted">{failed ? '수식 이미지를 그리지 못했습니다.' : '수식을 불러오는 중…'}</p>
+      )}
+      <details>
+        <summary>추출된 텍스트</summary>
+        <p className="equation-text">
+          <RichText text={block.text} start={0} end={block.text.length} mark={null} />
+        </p>
+      </details>
+    </figure>
+  )
+}
+
+/** 문장을 보여준다. 첨자 표시는 실제 첨자로, 드래그한 부분은 강조로. */
+function RichText({
   text,
   start,
   end,
@@ -117,14 +165,12 @@ function SentenceText({
   end: number
   mark: { start: number; end: number } | null
 }) {
-  if (!mark) return <>{text.slice(start, end)}</>
-  const ms = Math.max(mark.start, start)
-  const me = Math.min(mark.end, end)
   return (
     <>
-      {text.slice(start, ms)}
-      <mark>{text.slice(ms, me)}</mark>
-      {text.slice(me, end)}
+      {richPieces(text, start, end, mark).map((p, i) => {
+        const inner = p.kind === 'sub' ? <sub>{p.text}</sub> : p.kind === 'sup' ? <sup>{p.text}</sup> : p.text
+        return p.marked ? <mark key={i}>{inner}</mark> : <span key={i}>{inner}</span>
+      })}
     </>
   )
 }

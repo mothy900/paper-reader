@@ -30,6 +30,7 @@ class BlockType(StrEnum):
     paragraph = "paragraph"
     caption = "caption"
     figure = "figure"
+    equation = "equation"
 
 
 class Paper(SQLModel, table=True):

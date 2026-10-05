@@ -295,6 +295,10 @@ ul {
 }
 
 .pdf-page {
+  /* pdf.js 텍스트 레이어가 크기 계산에 쓰는 변수. 원래 .pdfViewer .page에만 정의돼 있어
+     빠지면 회전된 페이지에서 텍스트 레이어가 엉뚱한 위치에 놓인다. */
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
   position: relative;
   margin: 0 auto 16px;
   background: #fff;
@@ -431,4 +435,43 @@ ul {
   background: var(--accent-soft);
   color: inherit;
   border-radius: 2px;
+}
+
+.equation {
+  margin: 0;
+}
+
+.equation img {
+  display: block;
+  max-width: 100%;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.equation details {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.equation summary {
+  cursor: pointer;
+}
+
+.equation-text {
+  margin: 6px 0 0;
+  font-family: var(--font-reading);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.sentences sub,
+.sentences sup,
+.equation-text sub,
+.equation-text sup {
+  font-size: 0.72em;
+  line-height: 0;
 }
