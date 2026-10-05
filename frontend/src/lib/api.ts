@@ -1,5 +1,5 @@
 export type PaperStatus = 'parsing' | 'ready' | 'failed'
-export type BlockType = 'heading' | 'paragraph' | 'caption' | 'figure'
+export type BlockType = 'heading' | 'paragraph' | 'caption' | 'figure' | 'equation'
 
 export interface Paper {
   id: string

@@ -84,3 +84,15 @@ def test_skips_page_numbers_and_assigns_unique_ids(sample_pdf: bytes) -> None:
     ids = [b.id for b in doc.blocks]
     assert len(ids) == len(set(ids))
     assert [b.seq for b in doc.blocks] == list(range(len(doc.blocks)))
+
+
+def test_zero_width_combining_marks_are_not_hidden() -> None:
+    import pymupdf
+
+    from app.parsing.pymupdf_parser import _is_hidden_span
+
+    page = pymupdf.Rect(0, 0, 595, 794)
+    hat = {"text": "\u0302", "size": 8.0, "color": 0, "bbox": (383.0, 548.0, 383.0, 556.0)}
+    off_page = {"text": "x", "size": 8.0, "color": 0, "bbox": (700.0, 10.0, 710.0, 20.0)}
+    assert not _is_hidden_span(hat, page)
+    assert _is_hidden_span(off_page, page)
