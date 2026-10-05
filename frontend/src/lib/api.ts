@@ -7,6 +7,10 @@ export interface Paper {
   source_type: string
   source_url: string | null
   page_count: number
+  language: 'en' | 'ko'
+  abstract: string | null
+  /** 숨은 텍스트(흰 글씨·초소형 글씨 등)가 발견되어 제외된 곳의 수 */
+  hidden_text_count: number
   status: PaperStatus
   error: string | null
   created_at: string
@@ -21,6 +25,16 @@ export interface Block {
   /** PDF 좌표(pt), 페이지 왼쪽 위 원점: [x0, y0, x1, y1] */
   bbox: [number, number, number, number]
   section_id: string | null
+  /** heading일 때 1~3 */
+  level: number | null
+  /** 문장 경계: text.slice(start, end) */
+  sentences: [number, number][]
+}
+
+export interface UploadResult {
+  paper: Paper
+  /** 같은 파일이 이미 있어서 기존 논문을 돌려받았는지 */
+  existed: boolean
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -32,14 +46,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.status === 204 ? (undefined as T) : res.json()
 }
 
+async function uploadPaper(file: File): Promise<UploadResult> {
+  const body = new FormData()
+  body.append('file', file)
+  const res = await fetch('/api/papers', { method: 'POST', body })
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.detail ?? `${res.status} ${res.statusText}`)
+  }
+  return { paper: await res.json(), existed: res.status === 200 }
+}
+
 export const api = {
   listPapers: () => request<Paper[]>('/papers'),
   getBlocks: (paperId: string) => request<Block[]>(`/papers/${paperId}/blocks`),
-  uploadPaper: (file: File) => {
-    const body = new FormData()
-    body.append('file', file)
-    return request<Paper>('/papers', { method: 'POST', body })
-  },
+  uploadPaper,
   deletePaper: (paperId: string) => request<void>(`/papers/${paperId}`, { method: 'DELETE' }),
   fileUrl: (paperId: string) => `/api/papers/${paperId}/file`,
 }

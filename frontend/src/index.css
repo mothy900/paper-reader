@@ -184,8 +184,7 @@ ul {
 }
 
 .paper-list button,
-.outline button,
-.matched button {
+.outline button {
   display: block;
   width: 100%;
   padding: 6px 8px;
@@ -193,8 +192,7 @@ ul {
 }
 
 .paper-list button:hover,
-.outline button:hover,
-.matched button:hover {
+.outline button:hover {
   background: var(--accent-soft);
 }
 
@@ -212,6 +210,32 @@ ul {
 
 .outline button {
   font-size: 13px;
+}
+
+.outline li[data-level='2'] {
+  padding-left: 12px;
+}
+
+.outline li[data-level='3'] {
+  padding-left: 24px;
+}
+
+.outline li[data-level='3'] button {
+  color: var(--ink-muted);
+}
+
+.notice {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.header-notice {
+  font-size: 12px;
+  color: var(--ink-muted);
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: help;
 }
 
 /* Viewer */
@@ -252,9 +276,10 @@ ul {
   outline-color: rgb(164 69 44 / 0.6);
 }
 
-.block-box.is-selected {
-  background: rgb(47 90 122 / 0.08);
-  outline: 1px solid rgb(47 90 122 / 0.6);
+.block-box.is-focused {
+  outline: none;
+  background: rgb(47 90 122 / 0.05);
+  box-shadow: -6px 0 0 -3px var(--accent);
 }
 
 .block-label {
@@ -309,6 +334,11 @@ ul {
   color: var(--ink-muted);
 }
 
+.scope button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .scope button[aria-checked='true'] {
   background: var(--accent-soft);
   color: var(--accent);
@@ -320,7 +350,7 @@ ul {
   padding: 16px;
 }
 
-.selection blockquote {
+.focus blockquote {
   margin: 0 0 20px;
   padding-left: 12px;
   border-left: 2px solid var(--accent);
@@ -328,16 +358,37 @@ ul {
   line-height: 1.7;
 }
 
-.matched li + li {
-  margin-top: 4px;
+.focus-block + .focus-block {
+  margin-top: 20px;
 }
 
-.matched-text {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.focus-block > .paper-meta {
+  margin-bottom: 8px;
+}
+
+.focus-block > .paper-meta:hover {
+  color: var(--accent);
+}
+
+.sentences {
+  margin: 0;
+  padding-left: 20px;
   font-family: var(--font-reading);
-  font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.7;
+}
+
+.sentences li + li {
+  margin-top: 6px;
+}
+
+.sentences li::marker {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.sentences mark {
+  background: var(--accent-soft);
+  color: inherit;
+  border-radius: 2px;
 }

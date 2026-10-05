@@ -1,0 +1,10 @@
+[
+  {"name": "합자 fi/fl", "input": "e\ufb03cient \ufb01ne-tuning \ufb02ow", "expected": "efficient fine-tuning flow"},
+  {"name": "소프트 하이픈·zero-width", "input": "trans\u00adformer\u200b model", "expected": "transformer model"},
+  {"name": "둥근 따옴표", "input": "\u201cattention\u201d isn\u2019t \u2018all\u2019", "expected": "\"attention\" isn't 'all'"},
+  {"name": "공백 정리", "input": "  self-\n attention \t layers  ", "expected": "self- attention layers"},
+  {"name": "줄바꿈 없는 공백(NBSP)", "input": "Table\u00a01", "expected": "Table 1"},
+  {"name": "전각 문자", "input": "\uff21\uff29 model\uff08v2\uff09", "expected": "AI model(v2)"},
+  {"name": "수식 기호는 유지", "input": "√d_k × α", "expected": "√d_k × α"},
+  {"name": "한글은 그대로", "input": "어텐션  메커니즘", "expected": "어텐션 메커니즘"}
+]

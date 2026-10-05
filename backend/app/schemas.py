@@ -11,6 +11,9 @@ class PaperRead(SQLModel):
     source_type: str
     source_url: str | None
     page_count: int
+    language: str
+    abstract: str | None
+    hidden_text_count: int
     status: PaperStatus
     error: str | None
     created_at: datetime
@@ -24,3 +27,5 @@ class BlockRead(SQLModel):
     text: str
     bbox: tuple[float, float, float, float]
     section_id: str | None
+    level: int | None
+    sentences: list[tuple[int, int]]

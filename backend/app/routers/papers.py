@@ -1,3 +1,5 @@
+import hashlib
+from collections import defaultdict
 from pathlib import PurePath
 from typing import Annotated
 
@@ -6,8 +8,8 @@ from sqlmodel import Session, col, select
 
 from app.config import settings
 from app.db import get_session
-from app.models import Block, Paper, PaperStatus
-from app.parsing import parse_pdf
+from app.models import Block, Paper, Sentence
+from app.papers import apply_parse
 from app.schemas import BlockRead, PaperRead
 from app.storage import Storage, get_storage
 
@@ -34,20 +36,35 @@ def list_papers(session: SessionDep) -> list[Paper]:
     return list(session.exec(stmt))
 
 
-@router.post("", response_model=PaperRead, status_code=status.HTTP_201_CREATED)
-async def upload_paper(file: UploadFile, session: SessionDep, storage: StorageDep) -> Paper:
+@router.post(
+    "",
+    response_model=PaperRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={200: {"description": "같은 파일이 이미 있어 기존 논문을 반환"}},
+)
+async def upload_paper(
+    file: UploadFile, response: Response, session: SessionDep, storage: StorageDep
+) -> Paper:
     data = await file.read()
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "file too large")
     if not data.startswith(b"%PDF"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "not a PDF file")
 
-    fallback_title = PurePath(file.filename or "untitled.pdf").stem
+    sha256 = hashlib.sha256(data).hexdigest()
+    existing = session.exec(
+        select(Paper).where(Paper.user_id == settings.default_user_id, Paper.sha256 == sha256)
+    ).first()
+    if existing:
+        response.status_code = status.HTTP_200_OK
+        return existing
+
     paper = Paper(
         user_id=settings.default_user_id,
-        title=fallback_title,
+        title=PurePath(file.filename or "untitled.pdf").stem,
         source_type="upload",
         file_key="",
+        sha256=sha256,
     )
     paper.file_key = f"{paper.user_id}/{paper.id}.pdf"
     storage.save(paper.file_key, data)
@@ -55,32 +72,7 @@ async def upload_paper(file: UploadFile, session: SessionDep, storage: StorageDe
     session.flush()  # 블록의 외래키보다 paper 행이 먼저 들어가야 한다
 
     # PyMuPDF 파싱은 수 초 이내라 동기로 처리. 무거운 파서로 바꾸면 백그라운드 작업으로 옮긴다.
-    try:
-        parsed = parse_pdf(data)
-    except Exception as exc:  # noqa: BLE001 - 파싱 실패도 논문 레코드로 남긴다
-        paper.status = PaperStatus.failed
-        paper.error = str(exc)
-    else:
-        paper.title = parsed.title or fallback_title
-        paper.page_count = parsed.page_count
-        paper.status = PaperStatus.ready
-        session.add_all(
-            Block(
-                paper_id=paper.id,
-                id=b.id,
-                seq=b.seq,
-                page=b.page,
-                type=b.type,
-                text=b.text,
-                x0=b.bbox[0],
-                y0=b.bbox[1],
-                x1=b.bbox[2],
-                y1=b.bbox[3],
-                section_id=b.section_id,
-            )
-            for b in parsed.blocks
-        )
-
+    apply_parse(session, paper, data)
     session.commit()
     session.refresh(paper)
     return paper
@@ -99,8 +91,20 @@ def get_paper_file(paper_id: str, session: SessionDep, storage: StorageDep) -> R
 
 @router.get("/{paper_id}/blocks", response_model=list[BlockRead])
 def get_paper_blocks(paper_id: str, session: SessionDep) -> list[BlockRead]:
+    """화면에 보이는 블록만 문장 경계와 함께 반환한다 (숨은 텍스트 블록 제외)."""
     _get_paper(session, paper_id)
-    blocks = session.exec(select(Block).where(Block.paper_id == paper_id).order_by(col(Block.seq)))
+    blocks = session.exec(
+        select(Block)
+        .where(Block.paper_id == paper_id, col(Block.hidden).is_(False))
+        .order_by(col(Block.seq))
+    )
+    sentences: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for s in session.exec(
+        select(Sentence)
+        .where(Sentence.paper_id == paper_id)
+        .order_by(col(Sentence.block_id), col(Sentence.idx))
+    ):
+        sentences[s.block_id].append((s.start, s.end))
     return [
         BlockRead(
             id=b.id,
@@ -110,6 +114,8 @@ def get_paper_blocks(paper_id: str, session: SessionDep) -> list[BlockRead]:
             text=b.text,
             bbox=(b.x0, b.y0, b.x1, b.y1),
             section_id=b.section_id,
+            level=b.level,
+            sentences=sentences.get(b.id, []),
         )
         for b in blocks
     ]

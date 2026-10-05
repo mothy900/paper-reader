@@ -21,6 +21,7 @@ export function SideInfo() {
   const setSideTab = useReader((s) => s.setSideTab)
   const scope = useReader((s) => s.scope)
   const setScope = useReader((s) => s.setScope)
+  const hasFocus = useReader((s) => s.focus !== null)
 
   return (
     <aside className="side-info">
@@ -44,6 +45,8 @@ export function SideInfo() {
             type="button"
             role="radio"
             aria-checked={scope === s.id}
+            disabled={!hasFocus && (s.id === 'paragraph' || s.id === 'section')}
+            title={!hasFocus && (s.id === 'paragraph' || s.id === 'section') ? '본문을 클릭하거나 드래그하세요' : undefined}
             onClick={() => setScope(s.id)}
           >
             {s.label}
@@ -51,39 +54,77 @@ export function SideInfo() {
         ))}
       </div>
       <div className="side-body">
-        {sideTab === 'explain' ? <SelectionDebug /> : <p className="muted">다음 단계에서 연결됩니다.</p>}
+        {sideTab === 'explain' ? <FocusView /> : <p className="muted">다음 단계에서 연결됩니다.</p>}
       </div>
     </aside>
   )
 }
 
-/** 1단계: 드래그한 텍스트가 어느 블록에 매핑되는지 확인하는 용도 */
-function SelectionDebug() {
+/** 2단계: 포커스가 어느 블록·문장에 매핑되는지 보여준다. 3단계에서 해설로 바뀐다. */
+function FocusView() {
   const paperId = useReader((s) => s.paperId)
-  const selection = useReader((s) => s.selection)
+  const focus = useReader((s) => s.focus)
   const scrollToBlock = useReader((s) => s.scrollToBlock)
   const { data: blocks = [] } = useBlocks(paperId)
 
-  if (!selection) return <p className="muted">본문에서 문장이나 단어를 드래그해 보세요.</p>
+  if (!focus) {
+    return <p className="muted">본문에서 문장이나 단어를 드래그하거나, 문단을 클릭해 보세요.</p>
+  }
 
-  const matched = blocks.filter((b) => selection.blockIds.includes(b.id))
+  const byId = new Map(blocks.map((b) => [b.id, b]))
   return (
-    <div className="selection">
-      <blockquote>{selection.text}</blockquote>
-      <h3 className="section-label">매핑된 블록 {matched.length}개</h3>
-      {matched.length === 0 && <p className="error">선택 영역에 해당하는 블록을 찾지 못했습니다.</p>}
-      <ul className="matched">
-        {matched.map((b) => (
-          <li key={b.id}>
-            <button type="button" onClick={() => scrollToBlock(b.id)}>
-              <span className="paper-meta">
-                {b.id} · {b.type} · {b.page}쪽
-              </span>
-              <span className="matched-text">{b.text}</span>
+    <div className="focus">
+      {focus.source === 'selection' && <blockquote>{focus.text}</blockquote>}
+      {focus.ranges.map((range) => {
+        const block = byId.get(range.blockId)
+        if (!block) return null
+        const section = block.section_id ? byId.get(block.section_id) : undefined
+        return (
+          <section key={range.blockId} className="focus-block">
+            <button type="button" className="paper-meta" onClick={() => scrollToBlock(block.id)}>
+              {section ? `${section.text} · ` : ''}
+              {block.page}쪽 · {block.id}
             </button>
-          </li>
-        ))}
-      </ul>
+            <ol className="sentences">
+              {block.sentences.map(([s, e], idx) => {
+                if (s >= range.end || e <= range.start) return null
+                return (
+                  <li key={idx}>
+                    <SentenceText text={block.text} start={s} end={e} mark={focus.source === 'selection' ? range : null} />
+                  </li>
+                )
+              })}
+            </ol>
+          </section>
+        )
+      })}
+      {focus.sentenceIds.length === 0 && (
+        <p className="error">선택 영역에 해당하는 문장을 찾지 못했습니다.</p>
+      )}
     </div>
+  )
+}
+
+/** 문장을 보여주고, 드래그한 부분은 강조한다 */
+function SentenceText({
+  text,
+  start,
+  end,
+  mark,
+}: {
+  text: string
+  start: number
+  end: number
+  mark: { start: number; end: number } | null
+}) {
+  if (!mark) return <>{text.slice(start, end)}</>
+  const ms = Math.max(mark.start, start)
+  const me = Math.min(mark.end, end)
+  return (
+    <>
+      {text.slice(start, ms)}
+      <mark>{text.slice(ms, me)}</mark>
+      {text.slice(me, end)}
+    </>
   )
 }
