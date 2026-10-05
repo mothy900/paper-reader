@@ -86,7 +86,8 @@ class TextProcessor(Protocol):
     def extract_terms(self, blocks: list[Block]) -> list[TermCandidate]: ...
 ```
 
-- **영어**: 문장 분리 `pysbd`, 약어 Schwartz-Hearst(`large language model (LLM)`), 용어 후보는 빈도·명사구 기반.
+- **영어**: 문장 분리는 자체 규칙 기반(`app/text/processor.py`), 약어 Schwartz-Hearst(`large language model (LLM)`), 용어 후보는 빈도·명사구 기반.
+  - `pysbd`는 `See Eq. (2)`를 잘못 자르고, 2021년 이후 관리되지 않으며, 오프셋을 문자열 재검색으로 계산해 반복 문장에서 틀릴 수 있어 쓰지 않는다.
 - **한국어(나중)**: 문장 분리 `kss`, 토큰화·명사 추출 `Kiwi`(조사 분리 필수). HWP에서 변환한 PDF의 인코딩 깨짐을 실제 파일로 확인한다.
 - `Paper.language`(`en` | `ko`)는 업로드할 때 자동 감지. 한국어 논문이면 번역 탭을 숨긴다.
   한국어 구현 전에는 경고만 표시하고 LLM 기능(요약·해설·Q&A)은 동작시킨다.
@@ -227,7 +228,7 @@ LlmCall       user_id, paper_id, task, model, prompt_version, tokens_in, tokens_
 | 단계 | 범위 | 상태 |
 |---|---|---|
 | 1 | PDF 업로드 → pdf.js 뷰어 + 3분할 레이아웃 + 블록 파싱 + 드래그→블록 매핑 | ✅ |
-| 2 | **문서 모델 보강** (LLM 없음): 문장 분리·오프셋, 텍스트 정규화(프론트·백 공유), 제목 level, 숨은 텍스트 필터, sha256 중복 방지, 언어 감지, 초록 추출, 드래그→문장 매핑, 문단 클릭 포커스 | |
+| 2 | **문서 모델 보강** (LLM 없음): 문장 분리·오프셋, 텍스트 정규화(프론트·백 공유), 제목 level, 숨은 텍스트 필터, sha256 중복 방지, 언어 감지, 초록 추출, 드래그→문장 매핑, 문단 클릭 포커스 | ✅ |
 | 3 | **LLM 계층 + 해설**: `llm.run`, 결과 캐시, 호출 로그·비용 표시, SSE 스트리밍, UserProfile, 단어·문장 해설, 문단 번역, 해설 기록 | |
 | 4 | **용어집·관련 언급** (LLM 없음): 약어·용어 추출, TermOccurrence, 관련 언급 탭, 약어 호버, KnownTerm 재사용 | |
 | 5 | **Q&A (C안) + 요약 범위**: BM25 색인, 기본/전체 모드, 출처 검증, 섹션·전체 요약 | |
@@ -245,12 +246,26 @@ LlmCall       user_id, paper_id, task, model, prompt_version, tokens_in, tokens_
 - 측정: 출처 정확도(인용 id·인용문 검증 통과율), "없음" 판정 정확도, 평균 입력·출력 토큰.
 - `prompt_version`을 올릴 때마다 실행한다. 5단계(Q&A) 시작 전에 만든다.
 
+## 2단계 구현 메모
+- **정규화**: NFKC → 소프트 하이픈·zero-width 제거 → 둥근 따옴표 → 공백 정리. Python(`app/text/normalize.py`)과
+  TS(`src/lib/normalize.ts`)를 `shared/normalize_cases.json`으로 함께 테스트한다.
+- **드래그 → 문장**(`src/lib/focus.ts`): 비교할 때는 영숫자만 남긴 느슨한 형태로 찾는다(하이픈·공백·구두점 차이 흡수).
+  못 찾으면 앞뒤 20자로 찾고, 그래도 없으면 블록 전체를 포커스로 잡는다. 같은 문구가 여러 번 나오면 드래그 위치와 가장 가까운 것을 고른다.
+  선택 텍스트에 섞인 그림 속 글씨는 위치 찾기에만 쓰고 포커스에서는 뺀다.
+- **숨은 텍스트**: 흰색에 가까운 글자(RGB 모두 0xF0 이상), 2pt 미만, 페이지 밖. `hidden_text_count`는 숨은 텍스트가 있는 **블록 수**.
+  숨은 텍스트만 있는 블록은 `hidden=true`로 저장하고 API에서 내려주지 않는다.
+- **문장 id**: `"{block_id}:{idx}"` (예: `p3-12:2`).
+- **재파싱**: `PARSER_VERSION`을 올린 뒤 `uv run python -m app.scripts.reparse`.
+
 ## 알려진 한계 (현재 파서)
 - 표를 따로 구분하지 않는다. 작은 글씨 셀은 `figure`, 큰 셀은 `paragraph`로 분류된다.
 - 참고문헌 항목이 여러 블록으로 쪼개질 수 있다.
 - 수식 블록을 구분하지 않는다.
 - 회전된 페이지는 좌표 매핑이 어긋날 수 있다.
 - 스캔 PDF(텍스트 레이어 없음)는 OCR이 없어 블록이 비어 있다.
+- 줄끝 하이픈 제거가 진짜 하이픈까지 지운다(`high-` + `level` → `highlevel`).
+- 아래첨자·위첨자가 평문으로 합쳐진다(`h_{t-1}` → `ht−1`).
+- 그림 블록 분류는 "40자 미만 + 본문보다 작은 글씨" 기준이라, 다이어그램 라벨이나 표 셀도 `figure`가 된다.
 
 ## 나중에 정할 것
 - 배포 여부 (정하면: 인증, 사용량 제한, Postgres 전환, PyMuPDF 라이선스)

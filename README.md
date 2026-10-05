@@ -20,7 +20,7 @@ npm run dev
 
 ```bash
 cd backend && uv run pytest
-cd frontend && npm run build && npm run lint
+cd frontend && npm test && npm run build && npm run lint
 ```
 
 ## 구조
@@ -32,15 +32,28 @@ backend/
     config.py          설정 (.env)
     models.py          Paper, Block
     storage.py         파일 저장소 인터페이스 (LocalStorage)
-    parsing/           PDF → 블록 파서 (PyMuPDF)
+    parsing/           PDF → 블록·문장 파서 (PyMuPDF)
+    text/              텍스트 정규화, 언어별 문장 분리
+    papers.py          파싱 결과를 DB에 반영 (업로드·재파싱 공용)
     routers/papers.py  업로드·목록·파일·블록 API
+    scripts/reparse.py 기존 논문 재파싱
   alembic/             DB 마이그레이션
   tests/
 frontend/
   src/
     components/        Header, LeftSidebar, PdfViewer, SideInfo
-    lib/               API 클라이언트, react-query 훅, 선택→블록 매핑
-    store.ts           Zustand 상태
+    lib/               API 클라이언트, react-query 훅, 정규화, 드래그→블록·문장 매핑
+    store.ts           Zustand 상태 (포커스 등)
+shared/
+  normalize_cases.json 프론트·백엔드 정규화 공통 테스트 케이스
+```
+
+## 파서를 바꾼 뒤
+
+`backend/app/parsing/pymupdf_parser.py`의 `PARSER_VERSION`을 올리고 기존 논문을 다시 파싱한다.
+
+```bash
+cd backend && uv run python -m app.scripts.reparse
 ```
 
 ## DB 스키마 변경

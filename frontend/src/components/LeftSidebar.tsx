@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useBlocks, usePapers, useUploadPaper } from '../lib/queries'
 import { useReader } from '../store'
 
@@ -8,10 +8,17 @@ export function LeftSidebar() {
   const { data: papers = [] } = usePapers()
   const upload = useUploadPaper()
   const inputRef = useRef<HTMLInputElement>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const handleFile = (file: File | undefined) => {
     if (!file) return
-    upload.mutate(file, { onSuccess: (paper) => openPaper(paper.id) })
+    setNotice(null)
+    upload.mutate(file, {
+      onSuccess: ({ paper, existed }) => {
+        openPaper(paper.id)
+        if (existed) setNotice('이미 있는 논문이라 기존 논문을 열었어요.')
+      },
+    })
   }
 
   return (
@@ -37,6 +44,7 @@ export function LeftSidebar() {
           }}
         />
         {upload.error && <p className="error">{upload.error.message}</p>}
+        {notice && <p className="muted notice">{notice}</p>}
         <ul className="paper-list">
           {papers.map((p) => (
             <li key={p.id}>
@@ -72,7 +80,7 @@ function Outline({ paperId }: { paperId: string }) {
       ) : (
         <ul className="outline">
           {headings.map((h) => (
-            <li key={h.id}>
+            <li key={h.id} data-level={h.level ?? 1}>
               <button type="button" onClick={() => scrollToBlock(h.id)}>
                 {h.text}
               </button>

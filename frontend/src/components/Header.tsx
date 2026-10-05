@@ -16,6 +16,17 @@ export function Header() {
       <span className="header-title" title={paper?.title}>
         {paper?.title ?? ''}
       </span>
+      {paper && paper.hidden_text_count > 0 && (
+        <span
+          className="header-notice"
+          title="흰 글씨·아주 작은 글씨처럼 사람 눈에 보이지 않는 텍스트입니다. AI를 조작하려는 문구일 수 있어 해설·번역에서 제외했습니다."
+        >
+          숨은 텍스트 {paper.hidden_text_count}곳을 제외했습니다
+        </span>
+      )}
+      {paper?.language === 'ko' && (
+        <span className="header-notice">한국어 논문은 아직 일부 기능만 지원합니다</span>
+      )}
       {paper && (
         <div className="header-tools">
           <label className="toggle">
