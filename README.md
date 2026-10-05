@@ -16,6 +16,8 @@ npm install
 npm run dev
 ```
 
+백엔드를 다른 포트로 띄웠다면 프론트엔드 프록시 포트를 맞춘다: `API_PORT=8001 npm run dev`
+
 ## 테스트
 
 ```bash
@@ -34,8 +36,9 @@ backend/
     storage.py         파일 저장소 인터페이스 (LocalStorage)
     parsing/           PDF → 블록·문장 파서 (PyMuPDF)
     text/              텍스트 정규화, 언어별 문장 분리
-    papers.py          파싱 결과를 DB에 반영 (업로드·재파싱 공용)
-    routers/papers.py  업로드·목록·파일·블록 API
+    importing/         주소·arXiv ID·DOI로 PDF와 메타데이터 가져오기 (안전한 fetch 포함)
+    papers.py          논문 생성·파싱 결과 반영 (업로드·가져오기·재파싱 공용)
+    routers/papers.py  업로드·가져오기·목록·파일·블록 API
     scripts/reparse.py 기존 논문 재파싱
   alembic/             DB 마이그레이션
   tests/

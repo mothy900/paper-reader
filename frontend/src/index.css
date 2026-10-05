@@ -170,6 +170,46 @@ ul {
   background: var(--surface);
 }
 
+.import {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.import input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.import input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.import button {
+  padding: 0 10px;
+  font-size: 13px;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.import button:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+.import button:disabled {
+  color: var(--ink-muted);
+  cursor: default;
+}
+
 .upload {
   width: 100%;
   padding: 8px;

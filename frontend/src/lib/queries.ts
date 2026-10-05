@@ -18,3 +18,11 @@ export const useUploadPaper = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['papers'] }),
   })
 }
+
+export const useImportPaper = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.importPaper,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['papers'] }),
+  })
+}

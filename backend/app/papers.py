@@ -1,9 +1,64 @@
-"""논문 파싱 결과를 DB에 반영한다. 업로드와 재파싱 스크립트가 함께 쓴다."""
+"""논문 생성과 파싱 결과 반영. 업로드·주소 가져오기·재파싱 스크립트가 함께 쓴다."""
 
-from sqlmodel import Session, delete
+import hashlib
 
+from sqlmodel import Session, delete, select
+
+from app.config import settings
+from app.importing import PaperMeta
 from app.models import Block, Paper, PaperStatus, Sentence
 from app.parsing import parse_pdf
+from app.storage import Storage
+
+
+def create_paper(
+    session: Session,
+    storage: Storage,
+    data: bytes,
+    *,
+    fallback_title: str,
+    source_type: str,
+    source_url: str | None = None,
+    meta: PaperMeta | None = None,
+) -> tuple[Paper, bool]:
+    """PDF로 논문을 만든다. 같은 파일이 이미 있으면 (기존 논문, True)를 돌려준다."""
+    sha256 = hashlib.sha256(data).hexdigest()
+    existing = session.exec(
+        select(Paper).where(Paper.user_id == settings.default_user_id, Paper.sha256 == sha256)
+    ).first()
+    if existing:
+        return existing, True
+
+    paper = Paper(
+        user_id=settings.default_user_id,
+        title=fallback_title,
+        source_type=source_type,
+        source_url=source_url,
+        file_key="",
+        sha256=sha256,
+    )
+    if meta:
+        apply_meta(paper, meta)
+    paper.file_key = f"{paper.user_id}/{paper.id}.pdf"
+    storage.save(paper.file_key, data)
+    session.add(paper)
+    session.flush()  # 블록의 외래키보다 paper 행이 먼저 들어가야 한다
+
+    # PyMuPDF 파싱은 수 초 이내라 동기로 처리. 무거운 파서로 바꾸면 백그라운드 작업으로 옮긴다.
+    apply_parse(session, paper, data)
+    session.commit()
+    session.refresh(paper)
+    return paper, False
+
+
+def apply_meta(paper: Paper, meta: PaperMeta) -> None:
+    paper.title = meta.title or paper.title
+    paper.authors = meta.authors
+    paper.year = meta.year
+    paper.abstract = meta.abstract
+    paper.arxiv_id = meta.arxiv_id
+    paper.doi = meta.doi
+    paper.metadata_source = meta.source
 
 
 def apply_parse(session: Session, paper: Paper, data: bytes) -> None:
@@ -18,10 +73,14 @@ def apply_parse(session: Session, paper: Paper, data: bytes) -> None:
         paper.error = str(exc)
         return
 
-    paper.title = parsed.title or paper.title
+    if paper.metadata_source:
+        # 출처가 알려준 제목·초록이 파서 추측보다 정확하다
+        paper.abstract = paper.abstract or parsed.abstract
+    else:
+        paper.title = parsed.title or paper.title
+        paper.abstract = parsed.abstract
     paper.page_count = parsed.page_count
     paper.language = parsed.language
-    paper.abstract = parsed.abstract
     paper.hidden_text_count = parsed.hidden_text_count
     paper.parser_version = parsed.parser_version
     paper.status = PaperStatus.ready

@@ -10,6 +10,10 @@ class PaperRead(SQLModel):
     title: str
     source_type: str
     source_url: str | None
+    authors: list[str]
+    year: int | None
+    arxiv_id: str | None
+    doi: str | None
     page_count: int
     language: str
     abstract: str | None
@@ -29,3 +33,7 @@ class BlockRead(SQLModel):
     section_id: str | None
     level: int | None
     sentences: list[tuple[int, int]]
+
+
+class ImportRequest(SQLModel):
+    url: str  # 웹 주소, arXiv ID, DOI

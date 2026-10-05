@@ -1,4 +1,3 @@
-import hashlib
 from collections import defaultdict
 from pathlib import PurePath
 from typing import Annotated
@@ -8,15 +7,23 @@ from sqlmodel import Session, col, select
 
 from app.config import settings
 from app.db import get_session
+from app.importing import Fetcher, SourceError, import_from
 from app.models import Block, Paper, Sentence
-from app.papers import apply_parse
-from app.schemas import BlockRead, PaperRead
+from app.papers import create_paper
+from app.schemas import BlockRead, ImportRequest, PaperRead
 from app.storage import Storage, get_storage
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
 StorageDep = Annotated[Storage, Depends(get_storage)]
+
+
+def get_fetcher() -> Fetcher:
+    return Fetcher(max_bytes=settings.max_upload_mb * 1024 * 1024)
+
+
+FetcherDep = Annotated[Fetcher, Depends(get_fetcher)]
 
 
 def _get_paper(session: Session, paper_id: str) -> Paper:
@@ -51,30 +58,51 @@ async def upload_paper(
     if not data.startswith(b"%PDF"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "not a PDF file")
 
-    sha256 = hashlib.sha256(data).hexdigest()
-    existing = session.exec(
-        select(Paper).where(Paper.user_id == settings.default_user_id, Paper.sha256 == sha256)
-    ).first()
-    if existing:
-        response.status_code = status.HTTP_200_OK
-        return existing
-
-    paper = Paper(
-        user_id=settings.default_user_id,
-        title=PurePath(file.filename or "untitled.pdf").stem,
+    paper, existed = create_paper(
+        session,
+        storage,
+        data,
+        fallback_title=PurePath(file.filename or "untitled.pdf").stem,
         source_type="upload",
-        file_key="",
-        sha256=sha256,
     )
-    paper.file_key = f"{paper.user_id}/{paper.id}.pdf"
-    storage.save(paper.file_key, data)
-    session.add(paper)
-    session.flush()  # 블록의 외래키보다 paper 행이 먼저 들어가야 한다
+    if existed:
+        response.status_code = status.HTTP_200_OK
+    return paper
 
-    # PyMuPDF 파싱은 수 초 이내라 동기로 처리. 무거운 파서로 바꾸면 백그라운드 작업으로 옮긴다.
-    apply_parse(session, paper, data)
-    session.commit()
-    session.refresh(paper)
+
+@router.post(
+    "/import",
+    response_model=PaperRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        200: {"description": "같은 파일이 이미 있어 기존 논문을 반환"},
+        422: {"description": "가져오기 실패 (detail에 사용자용 메시지)"},
+    },
+)
+async def import_paper(
+    body: ImportRequest,
+    response: Response,
+    session: SessionDep,
+    storage: StorageDep,
+    fetcher: FetcherDep,
+) -> Paper:
+    """웹 주소, arXiv ID, DOI로 논문을 가져온다."""
+    try:
+        imported = await import_from(body.url, fetcher)
+    except SourceError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+    paper, existed = create_paper(
+        session,
+        storage,
+        imported.pdf,
+        fallback_title=imported.source_url,
+        source_type=imported.source_type,
+        source_url=imported.source_url,
+        meta=imported.meta,
+    )
+    if existed:
+        response.status_code = status.HTTP_200_OK
     return paper
 
 
