@@ -1,5 +1,8 @@
-import { usePapers } from '../lib/queries'
+import { useState } from 'react'
+import { formatCost } from '../lib/llm'
+import { usePapers, useProfile, useUsage } from '../lib/queries'
 import { useReader } from '../store'
+import { ProfileDialog } from './ProfileDialog'
 
 export function Header() {
   const paperId = useReader((s) => s.paperId)
@@ -9,6 +12,11 @@ export function Header() {
   const toggleShowBlocks = useReader((s) => s.toggleShowBlocks)
   const { data: papers } = usePapers()
   const paper = papers?.find((p) => p.id === paperId)
+  const { data: usage } = useUsage(paperId)
+  const profile = useProfile()
+  const [editing, setEditing] = useState(false)
+  // 프로필을 아직 입력하지 않았으면 첫 실행 안내로 띄운다
+  const showProfile = editing || (profile.isSuccess && profile.data === null)
 
   return (
     <header className="header">
@@ -27,6 +35,15 @@ export function Header() {
       {paper?.language === 'ko' && (
         <span className="header-notice">한국어 논문은 아직 일부 기능만 지원합니다</span>
       )}
+      {usage && usage.calls > 0 && (
+        <span className="header-cost" title={`이 논문에서 LLM을 ${usage.calls}번 호출했어요`}>
+          이 논문 {formatCost(usage.cost_usd)}
+        </span>
+      )}
+      <button type="button" className="header-button" onClick={() => setEditing(true)}>
+        내 정보
+      </button>
+      {showProfile && <ProfileDialog initial={profile.data ?? null} onClose={() => setEditing(false)} />}
       {paper && (
         <div className="header-tools">
           <label className="toggle">

@@ -35,6 +35,24 @@ export interface Block {
   sentences: [number, number][]
 }
 
+export interface Profile {
+  background: string
+  level: 'beginner' | 'intermediate' | 'expert'
+}
+
+export interface Usage {
+  cost_usd: number
+  calls: number
+}
+
+export interface HistoryItem {
+  id: number
+  task: string
+  detail: 'basic' | 'deep'
+  label: string
+  focus: import('./llm').ApiFocus
+}
+
 export interface UploadResult {
   paper: Paper
   /** 같은 파일이 이미 있어서 기존 논문을 돌려받았는지 */
@@ -82,4 +100,13 @@ export const api = {
   importPaper,
   deletePaper: (paperId: string) => request<void>(`/papers/${paperId}`, { method: 'DELETE' }),
   fileUrl: (paperId: string) => `/api/papers/${paperId}/file`,
+  getUsage: (paperId: string) => request<Usage>(`/papers/${paperId}/usage`),
+  getHistory: (paperId: string) => request<HistoryItem[]>(`/papers/${paperId}/history`),
+  getProfile: () => request<Profile | null>('/profile'),
+  putProfile: (profile: Profile) =>
+    request<Profile>('/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile),
+    }),
 }

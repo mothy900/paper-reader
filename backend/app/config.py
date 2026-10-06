@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     # 배포 전까지는 단일 사용자. 테이블에는 처음부터 user_id를 남겨둔다.
     default_user_id: str = "me"
     max_upload_mb: int = 50
+    # 비워 두면 SDK가 환경 변수나 `ant auth login` 프로필에서 찾는다
+    anthropic_api_key: str = ""
 
     @property
     def resolved_database_url(self) -> str:
