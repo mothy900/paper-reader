@@ -89,3 +89,57 @@ class Sentence(SQLModel, table=True):
     idx: int = Field(primary_key=True)
     start: int
     end: int
+
+
+class UserProfile(SQLModel, table=True):
+    """설명을 사용자 수준에 맞추기 위한 정보. 모든 해설 프롬프트에 들어간다."""
+
+    user_id: str = Field(primary_key=True)
+    background: str = ""  # 자유 텍스트, 예: "개발자, 선형대수 기초, ML 입문"
+    level: str = "beginner"  # beginner | intermediate | expert
+    updated_at: datetime = Field(default_factory=_now)
+
+
+class LlmCall(SQLModel, table=True):
+    """LLM 호출 기록. 비용을 화면에 보여주고 프롬프트를 조정할 때 근거로 쓴다."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True)
+    paper_id: str | None = Field(default=None, index=True)
+    task: str
+    model: str  # 실제로 응답한 모델 (대체 모델로 넘어갔으면 그 모델)
+    prompt_version: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    cost_usd: float = 0.0
+    latency_ms: int = 0
+    stop_reason: str | None = None
+    cache_key: str | None = None
+    created_at: datetime = Field(default_factory=_now)
+
+
+class LlmResult(SQLModel, table=True):
+    """LLM 결과 캐시. 같은 입력이면 다시 호출하지 않는다."""
+
+    cache_key: str = Field(primary_key=True)
+    task: str
+    model: str
+    prompt_version: str
+    sections: dict[str, str] = Field(sa_column=Column(JSON, nullable=False))
+    created_at: datetime = Field(default_factory=_now)
+
+
+class ExplainHistory(SQLModel, table=True):
+    """논문별 해설 기록. 다시 열면 캐시된 결과를 보여준다 (나중에 용어장의 재료)."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True)
+    paper_id: str = Field(foreign_key="paper.id", index=True, ondelete="CASCADE")
+    task: str
+    detail: str  # basic | deep
+    focus: dict = Field(sa_column=Column(JSON, nullable=False))
+    label: str  # 목록에 보여줄 짧은 텍스트
+    cache_key: str
+    created_at: datetime = Field(default_factory=_now)

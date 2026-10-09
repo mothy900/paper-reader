@@ -475,3 +475,209 @@ ul {
   font-size: 0.72em;
   line-height: 0;
 }
+
+/* Header: 비용·내 정보 */
+.header-cost {
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.header-button {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.header-button:hover {
+  color: var(--accent);
+}
+
+/* 공용 버튼 */
+button.primary {
+  padding: 6px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  text-align: center;
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 해설 */
+.explain {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.explain-section + .explain-section {
+  margin-top: 16px;
+}
+
+.explain-section p,
+.translate-result p {
+  margin: 0 0 6px;
+  font-family: var(--font-reading);
+  line-height: 1.75;
+}
+
+.explain-section ul,
+.translate-result ul {
+  margin: 0;
+  padding-left: 18px;
+  font-family: var(--font-reading);
+  line-height: 1.7;
+}
+
+.explain-section li + li {
+  margin-top: 4px;
+}
+
+.explain-section sub,
+.explain-section sup,
+.translate-result sub,
+.translate-result sup,
+.translate-source sub,
+.translate-source sup {
+  font-size: 0.72em;
+  line-height: 0;
+}
+
+.explain-meta {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.explain-actions {
+  margin-top: 10px;
+}
+
+.explain-actions button {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.history {
+  margin-top: 24px;
+  font-size: 13px;
+}
+
+.history summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+}
+
+.history ul {
+  margin-top: 6px;
+}
+
+.history button {
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history button:hover {
+  background: var(--accent-soft);
+}
+
+/* 번역 */
+.translate-block + .translate-block {
+  margin-top: 24px;
+}
+
+.translate-source {
+  margin: 0 0 10px;
+  font-family: var(--font-reading);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-muted);
+}
+
+/* 프로필 창 */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.25);
+}
+
+.dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.dialog h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.dialog > .muted {
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+
+.field {
+  display: block;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+
+.field > span,
+.field legend {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.field textarea {
+  width: 100%;
+  padding: 8px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.choice {
+  display: block;
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.choice input {
+  margin-right: 6px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}

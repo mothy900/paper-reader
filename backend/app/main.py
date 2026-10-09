@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import BACKEND_ROOT, settings
-from app.routers import papers
+from app.routers import llm, papers
 
 
 def run_migrations() -> None:
@@ -29,6 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(papers.router)
+app.include_router(llm.router)
 
 
 @app.get("/api/health")

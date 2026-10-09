@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { BlockRange } from './lib/focus'
+import type { Detail } from './lib/llm'
+import { useExplain, useTranslations } from './lib/llm'
 
 export type SideTab = 'translation' | 'explain' | 'mentions' | 'qa'
 export type Scope = 'paper' | 'section' | 'paragraph' | 'selection'
@@ -29,7 +31,10 @@ interface ReaderState {
   zoom: number
   showBlocks: boolean
   openPaper: (paperId: string) => void
+  /** 사용자가 본문에서 포커스를 바꿨다. 해설 탭에서 드래그했으면 바로 해설을 요청한다. */
   setFocus: (focus: Focus | null) => void
+  /** 해설 기록에서 다시 연다 (서버 캐시라 비용 없음) */
+  reopenExplain: (focus: Focus, detail: Detail) => void
   scrollToBlock: (blockId: string) => void
   setSideTab: (tab: SideTab) => void
   setScope: (scope: Scope) => void
@@ -37,7 +42,7 @@ interface ReaderState {
   toggleShowBlocks: () => void
 }
 
-export const useReader = create<ReaderState>()((set) => ({
+export const useReader = create<ReaderState>()((set, get) => ({
   paperId: null,
   focus: null,
   scrollTarget: null,
@@ -45,8 +50,26 @@ export const useReader = create<ReaderState>()((set) => ({
   scope: 'selection',
   zoom: 1.3,
   showBlocks: false,
-  openPaper: (paperId) => set({ paperId, focus: null, scrollTarget: null }),
-  setFocus: (focus) => set({ focus }),
+  openPaper: (paperId) => {
+    useExplain.getState().reset()
+    useTranslations.getState().reset()
+    set({ paperId, focus: null, scrollTarget: null })
+  },
+  setFocus: (focus) => {
+    set({ focus })
+    const { paperId, sideTab } = get()
+    // 토큰 절약: 해설 탭을 보면서 드래그한 경우만 자동 요청. 문단 클릭은 버튼으로.
+    if (paperId && focus?.source === 'selection' && focus.sentenceIds.length > 0 && sideTab === 'explain') {
+      useExplain.getState().run(paperId, focus, 'basic')
+    } else {
+      useExplain.getState().reset()
+    }
+  },
+  reopenExplain: (focus, detail) => {
+    set({ focus, sideTab: 'explain' })
+    const { paperId } = get()
+    if (paperId) useExplain.getState().run(paperId, focus, detail)
+  },
   scrollToBlock: (blockId) => set({ scrollTarget: { blockId, nonce: Date.now() } }),
   setSideTab: (sideTab) => set({ sideTab }),
   setScope: (scope) => set({ scope }),
