@@ -31,6 +31,7 @@ class BlockType(StrEnum):
     caption = "caption"
     figure = "figure"
     equation = "equation"
+    table = "table"
 
 
 class Paper(SQLModel, table=True):

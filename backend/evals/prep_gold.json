@@ -1,0 +1,80 @@
+{
+  "_설명": "데이터 뼈대 카드 정답 세트. 논문 PDF는 저작권 때문에 저장소에 넣지 않는다 — 로컬 DB에서 제목 앞부분으로 찾는다. status는 허용하는 상태 목록, must는 값에 들어 있어야 하는 정규식(대소문자 무시) 목록. note의 근거는 사람이 원문과 대조해 확인하는 용도.",
+  "papers": [
+    {
+      "title_prefix": "Numeric and machine learning modeling of mass transfer in radish",
+      "fields": {
+        "inputs": {
+          "status": ["stated"],
+          "must": ["PEF", "PAW", "NaCl|염|brine|5 ?%", "time|시간"],
+          "note": "3쪽 2.6.1: binary indicators for PEF/PAW, PEF voltage, PAW duration, brine concentration (5%/10%), time, time², PEF×PAW interaction"
+        },
+        "outputs": {
+          "status": ["stated"],
+          "must": ["수분|moisture", "NaCl|염"],
+          "note": "3쪽 2.6.2: moisture content and NaCl content as separate target variables"
+        },
+        "sample_size": {
+          "status": ["inferred", "not_stated"],
+          "must": [],
+          "note": "총 데이터 수는 명시 안 됨. 설계로는 처리 9종 × 농도 2 × 시점 7 × 반복 3 = 378 (2.1 시점, 2.2 처리, 2.9 triplicate). 'stated'면 오답"
+        },
+        "validation": {
+          "status": ["stated"],
+          "must": ["70", "15", "5-?fold|5겹|교차|cross"],
+          "note": "3쪽 2.6.2: stratified random split 70/15/15, seed 42; GridSearchCV 5-fold CV"
+        },
+        "metrics": {
+          "status": ["stated"],
+          "must": ["RMSE", "R\\^?\\{?2|R²|결정"],
+          "note": "3쪽: RMSE, R², mean error (%)"
+        }
+      }
+    },
+    {
+      "title_prefix": "Artificial intelligence",
+      "fields": {
+        "inputs": {
+          "status": ["stated"],
+          "must": ["종류|type|hydrocolloid|하이드로콜로이드", "온도|temperature", "전단|shear"],
+          "note": "2쪽 Machine learning analysis: eight inputs (six types of hydrocolloids, temperatures, shear rate). 농도는 입력에 없음"
+        },
+        "outputs": {
+          "status": ["stated"],
+          "must": ["점도|viscosit"],
+          "note": "2쪽: one output (shear rate viscosities)"
+        },
+        "sample_size": {
+          "status": ["stated", "inferred"],
+          "must": ["2336|2,336"],
+          "note": "2쪽: 2336 × 9 combinations"
+        },
+        "validation": {
+          "status": ["stated"],
+          "must": ["80", "20"],
+          "note": "2쪽: training 80% / testing 20%. 교차 검증 언급 없음"
+        },
+        "metrics": {
+          "status": ["stated"],
+          "must": ["RMSE", "R\\^?\\{?2|R²|결정"],
+          "note": "2쪽: R², RMSE"
+        }
+      }
+    },
+    {
+      "title_prefix": "Attention Is All You Need",
+      "fields": {
+        "inputs": {"status": ["stated"], "must": ["WMT|영어|English"], "note": "5.1: WMT 2014 English-German / English-French"},
+        "sample_size": {"status": ["stated"], "must": ["4\\.5", "36"], "note": "5.1: about 4.5 million sentence pairs (EN-DE), 36M sentences (EN-FR)"}
+      }
+    },
+    {
+      "title_prefix": "Deep Residual Learning",
+      "fields": {
+        "sample_size": {"status": ["stated"], "must": ["1\\.28"], "note": "4.1: 1.28 million training images, 50k validation, 100k test"},
+        "validation": {"status": ["stated"], "must": ["50 ?k|50,000|5만"], "note": "4.1: evaluated on the 50k validation images"},
+        "metrics": {"status": ["stated"], "must": ["top-?1|top-?5|오류|error"], "note": "4.1: top-1 and top-5 error rates"}
+      }
+    }
+  ]
+}
