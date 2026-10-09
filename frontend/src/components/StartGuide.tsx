@@ -3,11 +3,9 @@ import { sentencesInRanges } from '../lib/focus'
 import { useExplain } from '../lib/llm'
 import { useBlocks, usePapers } from '../lib/queries'
 import { useReader } from '../store'
+import { ReadingPrep } from './PrepCards'
 
-/**
- * 논문을 열고 아직 아무것도 고르지 않았을 때의 첫 화면. 무엇을 하면 되는지 알려준다.
- * 3.5단계에서 이 자리에 "읽기 전 준비"(사전지식·데이터 뼈대 카드)가 들어간다.
- */
+/** 준비 탭: 읽기 전 준비 카드와 읽는 방법 안내. 논문을 열면 처음 보이는 화면. */
 export function StartGuide({ paperId }: { paperId: string }) {
   const { data: blocks = [] } = useBlocks(paperId)
   const { data: papers } = usePapers()
@@ -33,6 +31,7 @@ export function StartGuide({ paperId }: { paperId: string }) {
 
   return (
     <div className="start-guide">
+      <ReadingPrep paperId={paperId} />
       <h2>이 논문 읽기 시작하기</h2>
       {abstract.length > 0 && (
         <section className="start-step">

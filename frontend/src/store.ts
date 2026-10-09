@@ -2,8 +2,9 @@ import { create } from 'zustand'
 import type { BlockRange } from './lib/focus'
 import type { Detail } from './lib/llm'
 import { useExplain, useTranslations } from './lib/llm'
+import { usePrep } from './lib/prep'
 
-export type SideTab = 'translation' | 'explain' | 'mentions' | 'qa'
+export type SideTab = 'prep' | 'translation' | 'explain' | 'mentions' | 'qa'
 
 /** 주소의 ?paper=… 값. 새로고침·뒤로 가기에서 열어 둔 논문을 유지하는 데 쓴다. */
 export function paperIdFromUrl(): string | null {
@@ -37,6 +38,8 @@ interface ReaderState {
   paperId: string | null
   focus: Focus | null
   scrollTarget: { blockId: string; nonce: number } | null
+  /** 근거 칩을 눌렀을 때 잠깐 강조할 블록 */
+  flash: { blockId: string; nonce: number } | null
   sideTab: SideTab
   zoom: number
   showBlocks: boolean
@@ -47,6 +50,8 @@ interface ReaderState {
   /** 해설 기록에서 다시 연다 (서버 캐시라 비용 없음) */
   reopenExplain: (focus: Focus, detail: Detail) => void
   scrollToBlock: (blockId: string) => void
+  /** 스크롤하고 잠깐 강조한다 (포커스는 바꾸지 않는다) */
+  flashBlock: (blockId: string) => void
   setSideTab: (tab: SideTab) => void
   setZoom: (zoom: number) => void
   toggleShowBlocks: () => void
@@ -56,7 +61,8 @@ export const useReader = create<ReaderState>()((set, get) => ({
   paperId: null,
   focus: null,
   scrollTarget: null,
-  sideTab: 'explain',
+  flash: null,
+  sideTab: 'prep',
   zoom: 1.3,
   showBlocks: false,
   openPaper: (paperId, opts) => {
@@ -64,9 +70,12 @@ export const useReader = create<ReaderState>()((set, get) => ({
     if (paperId === get().paperId) return
     useExplain.getState().reset()
     useTranslations.getState().reset()
-    set({ paperId, focus: null, scrollTarget: null })
+    usePrep.getState().reset()
+    set({ paperId, focus: null, scrollTarget: null, sideTab: 'prep' })
   },
   setFocus: (focus) => {
+    // 준비 탭에서 본문을 고르면 해설 탭으로 넘어간다
+    if (focus && get().sideTab === 'prep') set({ sideTab: 'explain' })
     set({ focus })
     const { paperId, sideTab } = get()
     // 토큰 절약: 해설 탭을 보면서 드래그한 경우만 자동 요청. 문단 클릭은 버튼으로.
@@ -82,6 +91,10 @@ export const useReader = create<ReaderState>()((set, get) => ({
     if (paperId) useExplain.getState().run(paperId, focus, detail)
   },
   scrollToBlock: (blockId) => set({ scrollTarget: { blockId, nonce: Date.now() } }),
+  flashBlock: (blockId) => {
+    const nonce = Date.now()
+    set({ scrollTarget: { blockId, nonce }, flash: { blockId, nonce } })
+  },
   setSideTab: (sideTab) => set({ sideTab }),
   setZoom: (zoom) => set({ zoom: Math.min(3, Math.max(0.6, zoom)) }),
   toggleShowBlocks: () => set((s) => ({ showBlocks: !s.showBlocks })),

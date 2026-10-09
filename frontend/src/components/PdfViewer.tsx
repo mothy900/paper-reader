@@ -153,6 +153,7 @@ function PdfPage({ doc, pageNumber, size, scale, blocks, root }: PdfPageProps) {
   const [visible, setVisible] = useState(false)
   const showBlocks = useReader((s) => s.showBlocks)
   const focusIds = useReader((s) => s.focus?.blockIds)
+  const flash = useReader((s) => s.flash)
 
   // 화면 근처에 온 페이지만 렌더링한다
   useEffect(() => {
@@ -220,12 +221,13 @@ function PdfPage({ doc, pageNumber, size, scale, blocks, root }: PdfPageProps) {
       <div className="block-layer">
         {blocks.map((b) => {
           const focused = focusIds?.includes(b.id)
-          if (!showBlocks && !focused) return null
+          const flashing = flash?.blockId === b.id
+          if (!showBlocks && !focused && !flashing) return null
           const [x0, y0, x1, y1] = b.bbox
           return (
             <div
-              key={b.id}
-              className={`block-box${focused ? ' is-focused' : ''}`}
+              key={flashing ? `${b.id}-${flash.nonce}` : b.id}
+              className={`block-box${focused ? ' is-focused' : ''}${flashing ? ' is-flash' : ''}`}
               data-type={b.type}
               style={{ left: x0 * scale, top: y0 * scale, width: (x1 - x0) * scale, height: (y1 - y0) * scale }}
             >

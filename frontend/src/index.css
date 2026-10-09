@@ -755,3 +755,192 @@ button:disabled {
   margin-top: 8px;
   font-size: 12px;
 }
+
+/* 읽기 전 준비 */
+.prep {
+  margin-bottom: 24px;
+}
+
+.prep h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.prep > .muted {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.prep-card {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.prep-card h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.prep-card h4 {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.prep-scope {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.skeleton {
+  margin: 0;
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.skeleton-row:first-child {
+  border-top: 0;
+}
+
+.skeleton dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.skeleton dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.skeleton-value {
+  font-family: var(--font-reading);
+}
+
+.skeleton-calc {
+  display: block;
+  font-size: 12px;
+}
+
+.status {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  font-size: 11px;
+  border-radius: 3px;
+  vertical-align: 1px;
+}
+
+.status-stated {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.status-inferred {
+  color: #8a6a1c;
+  background: rgb(214 168 60 / 0.16);
+}
+
+.status-not_stated,
+.status-not_applicable {
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
+}
+
+.chips {
+  display: inline;
+  margin-left: 4px;
+}
+
+.chip {
+  display: inline-block;
+  margin: 2px 4px 0 0;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 18px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--ink-muted);
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chip-verified {
+  color: var(--accent);
+}
+
+.chip-unverified {
+  border-style: dashed;
+}
+
+.prep-list {
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.prep-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+
+.concepts {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.concepts li + li {
+  margin-top: 10px;
+}
+
+.concepts p {
+  margin: 2px 0 0;
+  line-height: 1.6;
+}
+
+button.link {
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 근거 위치 강조 */
+.block-box.is-flash {
+  animation: flash 2s ease-out forwards;
+}
+
+@keyframes flash {
+  0%,
+  40% {
+    background: rgb(214 168 60 / 0.35);
+    outline: 2px solid rgb(214 168 60 / 0.8);
+  }
+  100% {
+    background: transparent;
+    outline-color: transparent;
+  }
+}
+
+.region-open {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+}
