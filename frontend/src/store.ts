@@ -4,7 +4,18 @@ import type { Detail } from './lib/llm'
 import { useExplain, useTranslations } from './lib/llm'
 
 export type SideTab = 'translation' | 'explain' | 'mentions' | 'qa'
-export type Scope = 'paper' | 'section' | 'paragraph' | 'selection'
+
+/** 주소의 ?paper=… 값. 새로고침·뒤로 가기에서 열어 둔 논문을 유지하는 데 쓴다. */
+export function paperIdFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get('paper')
+}
+
+function writePaperToUrl(paperId: string | null) {
+  const url = new URL(window.location.href)
+  if (paperId) url.searchParams.set('paper', paperId)
+  else url.searchParams.delete('paper')
+  if (url.href !== window.location.href) window.history.pushState(null, '', url)
+}
 
 /**
  * 포커스: "지금 무엇에 대해 묻고 있나"의 기준. 사용자가 마지막으로 지정한 곳이다.
@@ -27,17 +38,16 @@ interface ReaderState {
   focus: Focus | null
   scrollTarget: { blockId: string; nonce: number } | null
   sideTab: SideTab
-  scope: Scope
   zoom: number
   showBlocks: boolean
-  openPaper: (paperId: string) => void
+  /** fromUrl: 주소에서 읽어 온 경우라 주소를 다시 쓰지 않는다 */
+  openPaper: (paperId: string | null, opts?: { fromUrl?: boolean }) => void
   /** 사용자가 본문에서 포커스를 바꿨다. 해설 탭에서 드래그했으면 바로 해설을 요청한다. */
   setFocus: (focus: Focus | null) => void
   /** 해설 기록에서 다시 연다 (서버 캐시라 비용 없음) */
   reopenExplain: (focus: Focus, detail: Detail) => void
   scrollToBlock: (blockId: string) => void
   setSideTab: (tab: SideTab) => void
-  setScope: (scope: Scope) => void
   setZoom: (zoom: number) => void
   toggleShowBlocks: () => void
 }
@@ -47,10 +57,11 @@ export const useReader = create<ReaderState>()((set, get) => ({
   focus: null,
   scrollTarget: null,
   sideTab: 'explain',
-  scope: 'selection',
   zoom: 1.3,
   showBlocks: false,
-  openPaper: (paperId) => {
+  openPaper: (paperId, opts) => {
+    if (!opts?.fromUrl) writePaperToUrl(paperId)
+    if (paperId === get().paperId) return
     useExplain.getState().reset()
     useTranslations.getState().reset()
     set({ paperId, focus: null, scrollTarget: null })
@@ -72,7 +83,6 @@ export const useReader = create<ReaderState>()((set, get) => ({
   },
   scrollToBlock: (blockId) => set({ scrollTarget: { blockId, nonce: Date.now() } }),
   setSideTab: (sideTab) => set({ sideTab }),
-  setScope: (scope) => set({ scope }),
   setZoom: (zoom) => set({ zoom: Math.min(3, Math.max(0.6, zoom)) }),
   toggleShowBlocks: () => set((s) => ({ showBlocks: !s.showBlocks })),
 }))

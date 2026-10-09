@@ -361,33 +361,6 @@ ul {
   border-bottom-color: var(--accent);
 }
 
-.scope {
-  display: flex;
-  gap: 2px;
-  margin: 12px 16px 0;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  align-self: flex-start;
-}
-
-.scope button {
-  padding: 3px 12px;
-  border-radius: 4px;
-  font-size: 13px;
-  color: var(--ink-muted);
-}
-
-.scope button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.scope button[aria-checked='true'] {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
 .side-body {
   flex: 1;
   overflow-y: auto;
@@ -680,4 +653,105 @@ button:disabled {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+/* 접힌 패널을 다시 여는 손잡이 */
+.workspace-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.workspace-wrap > .workspace {
+  flex: 1;
+}
+
+.panel-rail {
+  position: absolute;
+  top: 50%;
+  z-index: 5;
+  padding: 10px 6px;
+  font-size: 12px;
+  writing-mode: vertical-rl;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transform: translateY(-50%);
+}
+
+.panel-rail.left {
+  left: 0;
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.panel-rail.right {
+  right: 0;
+  border-right: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.panel-rail:hover {
+  background: var(--accent-soft);
+}
+
+/* 경계선은 1px로 보이되 잡는 영역은 넓게 */
+.separator {
+  position: relative;
+}
+
+.separator::after {
+  content: '';
+  position: absolute;
+  inset: 0 -4px;
+}
+
+.header-button[aria-pressed='true'] {
+  color: var(--ink);
+}
+
+/* 아직 기능이 없는 탭 */
+.tabs button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tab-soon {
+  margin-left: 4px;
+  font-size: 10px;
+}
+
+/* 시작하기 화면 */
+.start-guide h2 {
+  margin: 0 0 16px;
+  font-size: 16px;
+}
+
+.start-step {
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.start-step h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.start-step > .muted {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.start-tips {
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.start-note {
+  margin-top: 8px;
+  font-size: 12px;
 }

@@ -4,6 +4,7 @@ import { renderRegion } from '../lib/pdf'
 import { useBlocks } from '../lib/queries'
 import { useReader } from '../store'
 import { RichText } from './RichText'
+import { StartGuide } from './StartGuide'
 
 /** 포커스한 문장들 (드래그한 부분 강조). 수식은 원본 이미지로. */
 export function FocusView() {
@@ -13,7 +14,7 @@ export function FocusView() {
   const { data: blocks = [] } = useBlocks(paperId)
 
   if (!focus) {
-    return <p className="muted">본문에서 문장이나 단어를 드래그하거나, 문단을 클릭해 보세요.</p>
+    return paperId ? <StartGuide paperId={paperId} /> : null
   }
 
   const byId = new Map(blocks.map((b) => [b.id, b]))
