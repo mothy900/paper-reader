@@ -144,3 +144,18 @@ class ExplainHistory(SQLModel, table=True):
     label: str  # 목록에 보여줄 짧은 텍스트
     cache_key: str
     created_at: datetime = Field(default_factory=_now)
+
+
+class KnownTerm(SQLModel, table=True):
+    """사용자가 해설을 본 용어. 다른 논문에서 같은 용어를 고르면 저장된 설명을 먼저 보여준다 (LLM 0회).
+
+    논문을 지워도 남는다 (사용자의 지식이므로). 그래서 논문 제목을 복사해 둔다.
+    """
+
+    user_id: str = Field(primary_key=True)
+    key: str = Field(primary_key=True)  # glossary.term_key 결과. 약어는 풀네임 기준
+    label: str  # 처음 해설을 본 표기
+    paper_id: str  # 처음 본 논문
+    paper_title: str
+    cache_key: str  # 그때 해설의 LlmResult
+    created_at: datetime = Field(default_factory=_now)

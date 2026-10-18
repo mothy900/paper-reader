@@ -8,7 +8,9 @@ from sqlmodel import Session, col, select
 
 from app.llm.tasks import EXPLAIN_EQUATION, EXPLAIN_SENTENCE, EXPLAIN_TABLE, EXPLAIN_WORD, Task
 from app.models import Block, BlockType, Paper, Sentence
+from app.papers import paper_glossary
 from app.storage import Storage
+from app.text.glossary import Term, match_term, term_key
 
 MAX_SELECTION_CHARS = 2500
 MAX_PARAGRAPH_CHARS = 3000
@@ -37,6 +39,8 @@ class Prepared:
     task: Task
     values: dict[str, str]
     image_png: bytes | None = None
+    # 단어 해설일 때: 다른 논문에서 본 같은 용어를 찾는 키
+    term_key: str | None = None
 
 
 def _clip(text: str, limit: int) -> str:
@@ -110,15 +114,18 @@ def prepare_explain(session: Session, storage: Storage, paper: Paper, focus: Foc
 
     if task is EXPLAIN_WORD:
         sentence = _sentence_text(session, paper.id, focus, blocks) or paragraph
+        term = match_term(paper_glossary(session, paper.id), focus.text)
         return Prepared(
             task,
             {
                 "section_title": section_title,
                 "sentence": sentence,
                 "paragraph": paragraph,
+                "glossary": _glossary_hint(term, blocks),
                 "mentions": _other_mentions(all_blocks, focus.text, exclude=set(focus.block_ids)),
                 "selection": selection,
             },
+            term_key=term.key if term else term_key(focus.text),
         )
 
     return Prepared(
@@ -147,6 +154,19 @@ def _sentence_text(session: Session, paper_id: str, focus: Focus, blocks: dict[s
     s = session.get(Sentence, (paper_id, block_id, int(idx)))
     block = blocks.get(block_id)
     return block.text[s.start : s.end] if s and block else ""
+
+
+def _glossary_hint(term: Term | None, blocks: dict[str, Block]) -> str:
+    """용어집에서 찾은 약어 풀이와 논문이 정의한 문장. 없으면 빈 문자열."""
+    if term is None:
+        return ""
+    lines = []
+    if term.kind == "abbr":
+        lines.append(f"약어: {term.short} = {term.long}")
+    if term.definition and term.definition[0] in blocks:
+        block_id, s, e = term.definition
+        lines.append(f"논문이 처음 정의한 문장: {_clip(blocks[block_id].text[s:e], 500)}")
+    return "\n".join(lines)
 
 
 def _other_mentions(all_blocks: list[Block], term: str, exclude: set[str]) -> str:

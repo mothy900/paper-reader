@@ -1,0 +1,35 @@
+{
+  "_설명": "약어 정답 세트 (LLM 없음, 무료). 논문 PDF는 저장소에 넣지 않는다 — 로컬 DB에서 제목 앞부분으로 찾는다. abbreviations는 본문에서 '풀네임 (약어)'로 정의한 약어 전부와 풀네임(대소문자 무시). 사람이 원문과 대조해 만들었다.",
+  "papers": [
+    {
+      "title_prefix": "Attention Is All You Need",
+      "abbreviations": {"WSJ": "Wall Street Journal"}
+    },
+    {
+      "title_prefix": "Deep Residual Learning",
+      "abbreviations": {
+        "ResNet": "residual net", "DET": "detection", "LOC": "localization", "SGD": "stochastic gradient descent",
+        "PDE": "partial differential equation", "MLP": "multi-layer perceptron", "BN": "batch normalization",
+        "NoC": "networks on conv feature maps", "RPN": "region proposal network", "NMS": "non-maximum suppression",
+        "PCR": "per-class regression"
+      }
+    },
+    {
+      "title_prefix": "Numeric and machine learning modeling",
+      "abbreviations": {
+        "PEF": "pulsed electric field", "PAW": "plasma-activated water", "ORP": "oxidation-reduction potential",
+        "RONS": "reactive oxygen and nitrogen species", "DBD": "dielectric barrier discharge",
+        "RMSE": "root mean squared error", "PAS": "periodic acid-schiff", "ROS": "reactive oxygen species",
+        "RNS": "reactive nitrogen species", "MAFRA": "ministry of agriculture, food and rural affairs",
+        "NRF": "national research foundation of korea"
+      }
+    },
+    {
+      "title_prefix": "Artificial intelligence",
+      "abbreviations": {
+        "AI": "artificial intelligence", "RMSE": "root mean squared error", "TVP": "texturized vegetable protein",
+        "TPA": "texture profile analysis"
+      }
+    }
+  ]
+}

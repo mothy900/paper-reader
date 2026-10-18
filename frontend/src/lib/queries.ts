@@ -11,6 +11,15 @@ export const useBlocks = (paperId: string | null) =>
     staleTime: Infinity,
   })
 
+/** 용어집 (LLM 없음). 블록처럼 논문이 바뀌지 않으면 그대로다. */
+export const useGlossary = (paperId: string | null) =>
+  useQuery({
+    queryKey: ['glossary', paperId],
+    queryFn: () => api.getGlossary(paperId!),
+    enabled: paperId !== null,
+    staleTime: Infinity,
+  })
+
 export const useUploadPaper = () => {
   const qc = useQueryClient()
   return useMutation({

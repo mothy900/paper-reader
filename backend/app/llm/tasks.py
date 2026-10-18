@@ -34,7 +34,7 @@ class Task:
     system_file: str = "system.md"
 
 
-EXPLAIN_WORD = Task("explain_word", "explain_word.md", "1", ("in_paper", "general", "plain"), 700, 3000)
+EXPLAIN_WORD = Task("explain_word", "explain_word.md", "2", ("in_paper", "general", "plain"), 700, 3000)
 EXPLAIN_SENTENCE = Task(
     "explain_sentence", "explain_sentence.md", "1", ("translation", "explanation", "role", "terms"), 1200, 5000
 )

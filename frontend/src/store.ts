@@ -5,20 +5,26 @@ import type { BlockRange } from './lib/focus'
 import { fromApiFocus, useExplain, useTranslations } from './lib/llm'
 import { usePrep } from './lib/prep'
 
-const AUTO_EXPLAIN_KEY = 'reader.autoExplain'
+/** 켜고 끄는 읽기 설정 (설정 창). 브라우저에 저장한다. */
+export type SettingKey = 'autoExplain' | 'abbrTooltip'
 
-/** 드래그 해설 설정. 브라우저 저장소를 못 쓰면(사생활 보호 모드 등) 기본값(켜짐)으로. */
-function readAutoExplain(): boolean {
+const SETTING_KEYS: Record<SettingKey, string> = {
+  autoExplain: 'reader.autoExplain',
+  abbrTooltip: 'reader.abbrTooltip',
+}
+
+/** 둘 다 기본은 켜짐. 브라우저 저장소를 못 쓰면(사생활 보호 모드 등) 기본값으로. */
+function readSetting(key: SettingKey): boolean {
   try {
-    return localStorage.getItem(AUTO_EXPLAIN_KEY) !== 'off'
+    return localStorage.getItem(SETTING_KEYS[key]) !== 'off'
   } catch {
     return true
   }
 }
 
-function writeAutoExplain(on: boolean) {
+function writeSetting(key: SettingKey, on: boolean) {
   try {
-    localStorage.setItem(AUTO_EXPLAIN_KEY, on ? 'on' : 'off')
+    localStorage.setItem(SETTING_KEYS[key], on ? 'on' : 'off')
   } catch {
     // 저장하지 못해도 이번 세션 동안은 동작한다
   }
@@ -65,6 +71,10 @@ interface ReaderState {
   showBlocks: boolean
   /** 드래그하면 바로 해설할지. 드래그하며 읽는 습관이 있으면 끌 수 있다. */
   autoExplain: boolean
+  /** 약어에 마우스를 올리면 풀네임을 보여줄지 */
+  abbrTooltip: boolean
+  /** 관련 언급 탭에서 고른 용어 (포커스가 바뀌면 초기화) */
+  mentionTerm: string | null
   /** fromUrl: 주소에서 읽어 온 경우라 주소를 다시 쓰지 않는다 */
   openPaper: (paperId: string | null, opts?: { fromUrl?: boolean }) => void
   /** 사용자가 본문에서 포커스를 바꿨다. 해설 탭에서 드래그했으면 바로 해설을 요청한다. */
@@ -77,7 +87,8 @@ interface ReaderState {
   setSideTab: (tab: SideTab) => void
   setZoom: (zoom: number) => void
   toggleShowBlocks: () => void
-  setAutoExplain: (on: boolean) => void
+  setSetting: (key: SettingKey, on: boolean) => void
+  setMentionTerm: (key: string | null) => void
 }
 
 export const useReader = create<ReaderState>()((set, get) => ({
@@ -88,7 +99,9 @@ export const useReader = create<ReaderState>()((set, get) => ({
   sideTab: 'prep',
   zoom: 1.3,
   showBlocks: false,
-  autoExplain: readAutoExplain(),
+  autoExplain: readSetting('autoExplain'),
+  abbrTooltip: readSetting('abbrTooltip'),
+  mentionTerm: null,
   openPaper: (paperId, opts) => {
     if (!opts?.fromUrl) writePaperToUrl(paperId)
     if (paperId === get().paperId) return
@@ -103,7 +116,7 @@ export const useReader = create<ReaderState>()((set, get) => ({
     // 준비 탭에서 본문을 고르면 해설 탭으로 넘어간다. 드래그 해설을 껐으면 드래그로는 넘어가지 않는다
     // (드래그하며 읽는 중에 탭이 바뀌지 않게).
     if (focus && get().sideTab === 'prep' && (!dragged || autoExplain)) set({ sideTab: 'explain' })
-    set({ focus })
+    set({ focus, mentionTerm: null })
     const { paperId, sideTab } = get()
     // 토큰 절약: 해설 탭을 보면서 드래그한 경우만 자동 요청. 문단 클릭은 버튼으로.
     if (paperId && focus && dragged && autoExplain && focus.sentenceIds.length > 0 && sideTab === 'explain') {
@@ -138,8 +151,9 @@ export const useReader = create<ReaderState>()((set, get) => ({
   setSideTab: (sideTab) => set({ sideTab }),
   setZoom: (zoom) => set({ zoom: Math.min(3, Math.max(0.6, zoom)) }),
   toggleShowBlocks: () => set((s) => ({ showBlocks: !s.showBlocks })),
-  setAutoExplain: (on) => {
-    writeAutoExplain(on)
-    set({ autoExplain: on })
+  setSetting: (key, on) => {
+    writeSetting(key, on)
+    set({ [key]: on })
   },
+  setMentionTerm: (mentionTerm) => set({ mentionTerm }),
 }))
