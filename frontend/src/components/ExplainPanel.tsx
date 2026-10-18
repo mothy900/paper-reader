@@ -34,6 +34,7 @@ export function ExplainPanel() {
   const paperId = useReader((s) => s.paperId)
   const focus = useReader((s) => s.focus)
   const autoExplain = useReader((s) => s.autoExplain)
+  const openPaper = useReader((s) => s.openPaper)
   const explain = useExplain()
 
   if (!paperId) return null
@@ -45,12 +46,28 @@ export function ExplainPanel() {
             {focus.source === 'block' ? '이 부분 해설 보기' : '해설 보기'}
           </button>
           {focus.source === 'selection' && !autoExplain && (
-            <p className="muted explain-hint">드래그 해설이 꺼져 있어요. 헤더에서 켤 수 있어요.</p>
+            <p className="muted explain-hint">드래그 해설이 꺼져 있어요. 설정에서 켤 수 있어요.</p>
           )}
         </>
       )}
+      {explain.known && explain.status !== 'idle' && (
+        <div className="known-banner">
+          <p>
+            전에{' '}
+            <button type="button" className="link-button" onClick={() => openPaper(explain.known!.paper_id)}>
+              「{explain.known.paper_title}」
+            </button>
+            에서 본 용어예요. 그때의 설명을 보여 드려요.
+          </p>
+          {focus && (
+            <button type="button" onClick={() => explain.run(paperId, focus, 'basic', { skipKnown: true })}>
+              이 논문에서의 의미 보기
+            </button>
+          )}
+        </div>
+      )}
       {explain.status !== 'idle' && <ExplainResult state={explain} />}
-      {focus && (explain.status === 'done' || explain.status === 'error') && (
+      {focus && !explain.known && (explain.status === 'done' || explain.status === 'error') && (
         <div className="explain-actions">
           {explain.detail === 'basic' ? (
             <button type="button" onClick={() => explain.run(paperId, focus, 'deep')}>
@@ -71,13 +88,16 @@ export function ExplainPanel() {
 function ExplainResult({ state }: { state: LlmState }) {
   const labels = SECTION_LABELS[state.task ?? ''] ?? []
   const waiting = state.status === 'streaming' && Object.keys(state.sections).length === 0
+  // 다른 논문에서 본 설명이면 "이 논문" 대신 "그 논문"
+  const sectionLabel = (name: string, label: string) =>
+    state.known && name === 'in_paper' ? '그 논문에서의 의미' : label
   return (
     <section className="explain-result" aria-live="polite">
       {waiting && <p className="muted">해설을 쓰는 중…</p>}
       {labels.map(([name, label]) =>
         state.sections[name] ? (
           <div key={name} className="explain-section">
-            <h3 className="section-label">{label}</h3>
+            <h3 className="section-label">{sectionLabel(name, label)}</h3>
             <SectionText text={state.sections[name]} />
           </div>
         ) : null,

@@ -9,8 +9,8 @@ from app.config import settings
 from app.db import get_session
 from app.importing import Fetcher, SourceError, import_from
 from app.models import Block, Paper, Sentence
-from app.papers import create_paper
-from app.schemas import BlockRead, ImportRequest, PaperRead
+from app.papers import create_paper, paper_glossary
+from app.schemas import BlockRead, ImportRequest, PaperRead, TermRead
 from app.storage import Storage, get_storage
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
@@ -146,6 +146,24 @@ def get_paper_blocks(paper_id: str, session: SessionDep) -> list[BlockRead]:
             sentences=sentences.get(b.id, []),
         )
         for b in blocks
+    ]
+
+
+@router.get("/{paper_id}/glossary", response_model=list[TermRead])
+def get_glossary(paper_id: str, session: SessionDep) -> list[TermRead]:
+    """약어·용어와 등장 위치 (LLM 없음). 관련 언급 탭과 약어 풀이에 쓴다."""
+    _get_paper(session, paper_id)
+    return [
+        TermRead(
+            key=t.key,
+            label=t.label,
+            kind=t.kind,
+            short=t.short,
+            long=t.long,
+            definition=t.definition,
+            occurrences=t.occurrences,
+        )
+        for t in paper_glossary(session, paper_id)
     ]
 
 

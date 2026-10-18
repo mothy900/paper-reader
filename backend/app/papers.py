@@ -1,14 +1,16 @@
 """논문 생성과 파싱 결과 반영. 업로드·주소 가져오기·재파싱 스크립트가 함께 쓴다."""
 
 import hashlib
+from collections import defaultdict
 
-from sqlmodel import Session, delete, select
+from sqlmodel import Session, col, delete, select
 
 from app.config import settings
 from app.importing import PaperMeta
 from app.models import Block, Paper, PaperStatus, Sentence
 from app.parsing import parse_pdf
 from app.storage import Storage
+from app.text.glossary import Term, TextBlock, build_glossary
 
 
 def create_paper(
@@ -107,3 +109,26 @@ def apply_parse(session: Session, paper: Paper, data: bytes) -> None:
             Sentence(paper_id=paper.id, block_id=b.id, idx=i, start=start, end=end)
             for i, (start, end) in enumerate(b.sentences)
         )
+
+
+def text_blocks(session: Session, paper_id: str) -> list[TextBlock]:
+    """화면에 보이는 블록을 읽기 순서로, 문장 경계·섹션 제목과 함께."""
+    blocks = list(
+        session.exec(
+            select(Block).where(Block.paper_id == paper_id, col(Block.hidden).is_(False)).order_by(col(Block.seq))
+        )
+    )
+    sentences: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for s in session.exec(
+        select(Sentence).where(Sentence.paper_id == paper_id).order_by(col(Sentence.block_id), col(Sentence.idx))
+    ):
+        sentences[s.block_id].append((s.start, s.end))
+    titles = {b.id: b.text for b in blocks if b.type == "heading"}
+    return [
+        TextBlock(b.id, b.type.value, b.text, sentences[b.id], titles.get(b.section_id or "", "")) for b in blocks
+    ]
+
+
+def paper_glossary(session: Session, paper_id: str) -> list[Term]:
+    """용어집은 블록에서 매번 만든다 (논문 한 편에 0.1초 이내). 추출 규칙을 고쳐도 재파싱이 필요 없다."""
+    return build_glossary(text_blocks(session, paper_id))

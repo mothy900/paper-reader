@@ -2,6 +2,8 @@ import type { SideTab } from '../store'
 import { useReader } from '../store'
 import { ExplainPanel } from './ExplainPanel'
 import { FocusView } from './FocusView'
+import { useMentions } from '../lib/mentions'
+import { MentionsPanel } from './MentionsPanel'
 import { StartGuide } from './StartGuide'
 import { TranslatePanel } from './TranslatePanel'
 
@@ -10,7 +12,7 @@ const TABS: { id: SideTab; label: string; ready: boolean }[] = [
   { id: 'prep', label: '준비', ready: true },
   { id: 'explain', label: '해설', ready: true },
   { id: 'translation', label: '번역', ready: true },
-  { id: 'mentions', label: '관련 언급', ready: false },
+  { id: 'mentions', label: '관련 언급', ready: true },
   { id: 'qa', label: 'Q&A', ready: false },
 ]
 
@@ -18,6 +20,8 @@ export function SideInfo() {
   const sideTab = useReader((s) => s.sideTab)
   const setSideTab = useReader((s) => s.setSideTab)
   const paperId = useReader((s) => s.paperId)
+  // 관련 언급은 탭을 보고 있지 않아도 계산해 개수를 보여준다 (로컬 계산이라 비용이 없다)
+  const mentionCount = useMentions()?.groups?.total ?? 0
 
   return (
     <aside className="side-info">
@@ -33,11 +37,12 @@ export function SideInfo() {
             onClick={() => setSideTab(t.id)}
           >
             {t.label}
+            {t.id === 'mentions' && mentionCount > 0 && <span className="tab-count">{mentionCount}</span>}
             {!t.ready && <span className="tab-soon">준비 중</span>}
           </button>
         ))}
       </nav>
-      <div className="side-body">
+      <div className="side-body" data-abbr-scope>
         {sideTab === 'prep' && paperId && <StartGuide paperId={paperId} />}
         {sideTab === 'explain' && (
           <>
@@ -46,6 +51,7 @@ export function SideInfo() {
           </>
         )}
         {sideTab === 'translation' && <TranslatePanel />}
+        {sideTab === 'mentions' && <MentionsPanel />}
       </div>
     </aside>
   )

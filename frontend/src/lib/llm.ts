@@ -15,6 +15,14 @@ export interface LlmState {
   costUsd?: number
   truncated?: boolean
   message?: string
+  /** 다른 논문에서 본 용어라 그때의 설명을 보여주는 중 */
+  known?: KnownTerm
+}
+
+export interface KnownTerm {
+  paper_id: string
+  paper_title: string
+  label: string
 }
 
 export const IDLE: LlmState = { status: 'idle', sections: {} }
@@ -23,7 +31,13 @@ export const IDLE: LlmState = { status: 'idle', sections: {} }
 export function reduceEvent(state: LlmState, event: string, data: Record<string, unknown>): LlmState {
   switch (event) {
     case 'meta':
-      return { ...state, task: data.task as string, model: data.model as string, cached: data.cached as boolean }
+      return {
+        ...state,
+        task: data.task as string,
+        model: data.model as string,
+        cached: data.cached as boolean,
+        known: data.known as KnownTerm | undefined,
+      }
     case 'section': {
       const name = data.name as string
       return { ...state, sections: { ...state.sections, [name]: (state.sections[name] ?? '') + (data.delta as string) } }
@@ -92,7 +106,8 @@ export function fromApiFocus(f: ApiFocus): Focus {
 
 interface ExplainStore extends LlmState {
   detail: Detail
-  run: (paperId: string, focus: Focus, detail: Detail) => void
+  /** skipKnown: 다른 논문에서 본 용어여도 이 논문 기준으로 새로 해설한다 */
+  run: (paperId: string, focus: Focus, detail: Detail, opts?: { skipKnown?: boolean }) => void
   /** 저장된 결과를 바로 보여준다 (해설 기록) */
   show: (result: { task: string; model: string; sections: Record<string, string> }, detail: Detail) => void
   reset: () => void
@@ -104,13 +119,13 @@ let explainCtrl: AbortController | null = null
 export const useExplain = create<ExplainStore>()((set) => ({
   ...IDLE,
   detail: 'basic',
-  run: (paperId, focus, detail) => {
+  run: (paperId, focus, detail, opts) => {
     explainCtrl?.abort()
     const ctrl = (explainCtrl = new AbortController())
     set({ detail })
     void runStream(
       `/papers/${paperId}/explain`,
-      { focus: toApiFocus(focus), detail },
+      { focus: toApiFocus(focus), detail, skip_known: opts?.skipKnown ?? false },
       ctrl.signal,
       (fn) => {
         if (!ctrl.signal.aborted) set((s) => fn(s))

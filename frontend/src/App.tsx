@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels'
+import { AbbrTooltip } from './components/AbbrTooltip'
 import { Header } from './components/Header'
 import { LeftSidebar } from './components/LeftSidebar'
 import { PdfViewer } from './components/PdfViewer'
@@ -38,6 +39,7 @@ export default function App() {
         onToggleSidebar={() => toggle(sidebarRef)}
         onToggleSide={() => toggle(sideRef)}
       />
+      <AbbrTooltip />
       <div className="workspace-wrap">
         <Group
           orientation="horizontal"
