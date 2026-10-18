@@ -93,6 +93,8 @@ export function fromApiFocus(f: ApiFocus): Focus {
 interface ExplainStore extends LlmState {
   detail: Detail
   run: (paperId: string, focus: Focus, detail: Detail) => void
+  /** 저장된 결과를 바로 보여준다 (해설 기록) */
+  show: (result: { task: string; model: string; sections: Record<string, string> }, detail: Detail) => void
   reset: () => void
 }
 
@@ -115,6 +117,11 @@ export const useExplain = create<ExplainStore>()((set) => ({
       },
       paperId,
     ).then(() => queryClient.invalidateQueries({ queryKey: ['history', paperId] }))
+  },
+  show: (result, detail) => {
+    explainCtrl?.abort()
+    explainCtrl = null
+    set({ ...IDLE, ...result, status: 'done', cached: true, costUsd: 0, detail })
   },
   reset: () => {
     explainCtrl?.abort()

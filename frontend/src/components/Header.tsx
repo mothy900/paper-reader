@@ -17,6 +17,8 @@ export function Header({ sidebarOpen, sideOpen, onToggleSidebar, onToggleSide }:
   const setZoom = useReader((s) => s.setZoom)
   const showBlocks = useReader((s) => s.showBlocks)
   const toggleShowBlocks = useReader((s) => s.toggleShowBlocks)
+  const autoExplain = useReader((s) => s.autoExplain)
+  const setAutoExplain = useReader((s) => s.setAutoExplain)
   const { data: papers } = usePapers()
   const paper = papers?.find((p) => p.id === paperId)
   const { data: usage } = useUsage(paperId)
@@ -71,6 +73,10 @@ export function Header({ sidebarOpen, sideOpen, onToggleSidebar, onToggleSide }:
       {showProfile && <ProfileDialog initial={profile.data ?? null} onClose={() => setEditing(false)} />}
       {paper && (
         <div className="header-tools">
+          <label className="toggle" title="켜면 문장을 드래그하는 즉시 해설해요. 드래그하며 읽는 습관이 있다면 꺼 두세요.">
+            <input type="checkbox" checked={autoExplain} onChange={(e) => setAutoExplain(e.target.checked)} />
+            드래그 해설
+          </label>
           <label className="toggle">
             <input type="checkbox" checked={showBlocks} onChange={toggleShowBlocks} />
             블록 경계

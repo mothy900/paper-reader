@@ -944,3 +944,8 @@ button.link {
   margin-top: 6px;
   font-size: 12px;
 }
+
+.explain-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+}

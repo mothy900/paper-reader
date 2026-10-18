@@ -174,3 +174,26 @@ def test_unknown_block_is_rejected(client, paper, fake) -> None:
     fake(FakeClient([]))
     focus = {"source": "block", "text": "x", "block_ids": ["p9-99"], "ranges": [], "sentence_ids": []}
     assert client.post(f"/api/papers/{paper['id']}/explain", json={"focus": focus}).status_code == 422
+
+
+def test_history_result_returns_stored_explanation_without_calling(client, paper, fake) -> None:
+    llm = fake(FakeClient(SENTENCE_REPLY))
+    client.post(f"/api/papers/{paper['id']}/explain", json={"focus": _abstract_focus(client, paper)})
+    [item] = client.get(f"/api/papers/{paper['id']}/history").json()
+
+    res = client.get(f"/api/papers/{paper['id']}/history/{item['id']}")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["task"] == "explain_sentence"
+    assert body["sections"]["translation"] == "우리는 희소 어텐션을 연구한다."
+    assert body["focus"]["block_ids"] == item["focus"]["block_ids"]
+    assert len(llm.calls) == 1  # 기록 조회는 호출하지 않는다
+
+
+def test_history_result_404_when_result_was_not_stored(client, paper, fake) -> None:
+    fake(FakeClient(["<translation>부분"], stop_reason="refusal"))
+    client.post(f"/api/papers/{paper['id']}/explain", json={"focus": _abstract_focus(client, paper)})
+    [item] = client.get(f"/api/papers/{paper['id']}/history").json()
+
+    assert client.get(f"/api/papers/{paper['id']}/history/{item['id']}").status_code == 404
+    assert client.get(f"/api/papers/{paper['id']}/history/999999").status_code == 404
