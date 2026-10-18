@@ -15,7 +15,7 @@ from app.llm.context import Focus, FocusRange, prepare_explain, prepare_translat
 from app.llm.prep import PrepInput, prepare_concepts, prepare_data, verify_concepts, verify_data
 from app.llm.runner import Event, RunRequest, cached_sections, run_task
 from app.llm.tasks import TRANSLATE, Detail
-from app.models import ExplainHistory, LlmCall, Paper, UserProfile
+from app.models import ExplainHistory, LlmCall, LlmResult, Paper, UserProfile
 from app.storage import Storage, get_storage
 
 router = APIRouter(prefix="/api", tags=["llm"])
@@ -241,6 +241,36 @@ def paper_history(paper_id: str, session: SessionDep) -> list[ExplainHistory]:
             .order_by(col(ExplainHistory.id).desc())
             .limit(HISTORY_LIMIT)
         )
+    )
+
+
+class HistoryResultOut(SQLModel):
+    id: int
+    task: str
+    detail: str
+    focus: dict
+    model: str
+    sections: dict[str, str]
+
+
+@router.get("/papers/{paper_id}/history/{history_id}", response_model=HistoryResultOut)
+def history_result(paper_id: str, history_id: int, session: SessionDep) -> HistoryResultOut:
+    """해설 기록의 저장된 결과를 그대로 돌려준다 (LLM 호출·스트리밍 없음)."""
+    _paper(session, paper_id)
+    item = session.get(ExplainHistory, history_id)
+    if item is None or item.paper_id != paper_id or item.user_id != settings.default_user_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "history not found")
+    result = session.get(LlmResult, item.cache_key)
+    if result is None:
+        # 거절·오류로 끝나 저장되지 않은 해설. 프론트는 이때 다시 요청한다.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no stored result")
+    return HistoryResultOut(
+        id=item.id,
+        task=item.task,
+        detail=item.detail,
+        focus=item.focus,
+        model=result.model,
+        sections=result.sections,
     )
 
 

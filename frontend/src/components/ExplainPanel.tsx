@@ -1,5 +1,5 @@
 import type { LlmState } from '../lib/llm'
-import { fromApiFocus, formatCost, modelLabel, useExplain } from '../lib/llm'
+import { formatCost, modelLabel, useExplain } from '../lib/llm'
 import { useHistory } from '../lib/queries'
 import { useReader } from '../store'
 import { RichText } from './RichText'
@@ -33,15 +33,21 @@ const SECTION_LABELS: Record<string, [string, string][]> = {
 export function ExplainPanel() {
   const paperId = useReader((s) => s.paperId)
   const focus = useReader((s) => s.focus)
+  const autoExplain = useReader((s) => s.autoExplain)
   const explain = useExplain()
 
   if (!paperId) return null
   return (
     <div className="explain">
       {focus && explain.status === 'idle' && (
-        <button type="button" className="primary" onClick={() => explain.run(paperId, focus, 'basic')}>
-          {focus.source === 'block' ? '이 부분 해설 보기' : '해설 보기'}
-        </button>
+        <>
+          <button type="button" className="primary" onClick={() => explain.run(paperId, focus, 'basic')}>
+            {focus.source === 'block' ? '이 부분 해설 보기' : '해설 보기'}
+          </button>
+          {focus.source === 'selection' && !autoExplain && (
+            <p className="muted explain-hint">드래그 해설이 꺼져 있어요. 헤더에서 켤 수 있어요.</p>
+          )}
+        </>
       )}
       {explain.status !== 'idle' && <ExplainResult state={explain} />}
       {focus && (explain.status === 'done' || explain.status === 'error') && (
@@ -89,7 +95,7 @@ function ExplainResult({ state }: { state: LlmState }) {
 
 function History({ paperId }: { paperId: string }) {
   const { data: items = [] } = useHistory(paperId)
-  const reopen = useReader((s) => s.reopenExplain)
+  const reopen = useReader((s) => s.reopenHistory)
   if (items.length === 0) return null
   return (
     <details className="history">
@@ -97,7 +103,7 @@ function History({ paperId }: { paperId: string }) {
       <ul>
         {items.map((h) => (
           <li key={h.id}>
-            <button type="button" onClick={() => reopen(fromApiFocus(h.focus), h.detail)}>
+            <button type="button" onClick={() => reopen(h)}>
               <RichText text={h.label} start={0} end={h.label.length} mark={null} />
               {h.detail === 'deep' && <span className="muted"> · 자세히</span>}
             </button>

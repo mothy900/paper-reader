@@ -1,8 +1,28 @@
 import { create } from 'zustand'
+import type { HistoryItem } from './lib/api'
+import { api } from './lib/api'
 import type { BlockRange } from './lib/focus'
-import type { Detail } from './lib/llm'
-import { useExplain, useTranslations } from './lib/llm'
+import { fromApiFocus, useExplain, useTranslations } from './lib/llm'
 import { usePrep } from './lib/prep'
+
+const AUTO_EXPLAIN_KEY = 'reader.autoExplain'
+
+/** 드래그 해설 설정. 브라우저 저장소를 못 쓰면(사생활 보호 모드 등) 기본값(켜짐)으로. */
+function readAutoExplain(): boolean {
+  try {
+    return localStorage.getItem(AUTO_EXPLAIN_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
+function writeAutoExplain(on: boolean) {
+  try {
+    localStorage.setItem(AUTO_EXPLAIN_KEY, on ? 'on' : 'off')
+  } catch {
+    // 저장하지 못해도 이번 세션 동안은 동작한다
+  }
+}
 
 export type SideTab = 'prep' | 'translation' | 'explain' | 'mentions' | 'qa'
 
@@ -43,18 +63,21 @@ interface ReaderState {
   sideTab: SideTab
   zoom: number
   showBlocks: boolean
+  /** 드래그하면 바로 해설할지. 드래그하며 읽는 습관이 있으면 끌 수 있다. */
+  autoExplain: boolean
   /** fromUrl: 주소에서 읽어 온 경우라 주소를 다시 쓰지 않는다 */
   openPaper: (paperId: string | null, opts?: { fromUrl?: boolean }) => void
   /** 사용자가 본문에서 포커스를 바꿨다. 해설 탭에서 드래그했으면 바로 해설을 요청한다. */
   setFocus: (focus: Focus | null) => void
-  /** 해설 기록에서 다시 연다 (서버 캐시라 비용 없음) */
-  reopenExplain: (focus: Focus, detail: Detail) => void
+  /** 해설 기록에서 다시 연다: 저장된 결과를 그대로 보여준다 (호출·스트리밍 없음) */
+  reopenHistory: (item: HistoryItem) => void
   scrollToBlock: (blockId: string) => void
   /** 스크롤하고 잠깐 강조한다 (포커스는 바꾸지 않는다) */
   flashBlock: (blockId: string) => void
   setSideTab: (tab: SideTab) => void
   setZoom: (zoom: number) => void
   toggleShowBlocks: () => void
+  setAutoExplain: (on: boolean) => void
 }
 
 export const useReader = create<ReaderState>()((set, get) => ({
@@ -65,6 +88,7 @@ export const useReader = create<ReaderState>()((set, get) => ({
   sideTab: 'prep',
   zoom: 1.3,
   showBlocks: false,
+  autoExplain: readAutoExplain(),
   openPaper: (paperId, opts) => {
     if (!opts?.fromUrl) writePaperToUrl(paperId)
     if (paperId === get().paperId) return
@@ -74,21 +98,37 @@ export const useReader = create<ReaderState>()((set, get) => ({
     set({ paperId, focus: null, scrollTarget: null, sideTab: 'prep' })
   },
   setFocus: (focus) => {
-    // 준비 탭에서 본문을 고르면 해설 탭으로 넘어간다
-    if (focus && get().sideTab === 'prep') set({ sideTab: 'explain' })
+    const { autoExplain } = get()
+    const dragged = focus?.source === 'selection'
+    // 준비 탭에서 본문을 고르면 해설 탭으로 넘어간다. 드래그 해설을 껐으면 드래그로는 넘어가지 않는다
+    // (드래그하며 읽는 중에 탭이 바뀌지 않게).
+    if (focus && get().sideTab === 'prep' && (!dragged || autoExplain)) set({ sideTab: 'explain' })
     set({ focus })
     const { paperId, sideTab } = get()
     // 토큰 절약: 해설 탭을 보면서 드래그한 경우만 자동 요청. 문단 클릭은 버튼으로.
-    if (paperId && focus?.source === 'selection' && focus.sentenceIds.length > 0 && sideTab === 'explain') {
+    if (paperId && focus && dragged && autoExplain && focus.sentenceIds.length > 0 && sideTab === 'explain') {
       useExplain.getState().run(paperId, focus, 'basic')
     } else {
       useExplain.getState().reset()
     }
   },
-  reopenExplain: (focus, detail) => {
+  reopenHistory: (item) => {
+    const focus = fromApiFocus(item.focus)
     set({ focus, sideTab: 'explain' })
     const { paperId } = get()
-    if (paperId) useExplain.getState().run(paperId, focus, detail)
+    if (!paperId) return
+    const explain = useExplain.getState()
+    explain.reset()
+    api
+      .getHistoryResult(paperId, item.id)
+      .then((r) => {
+        if (get().focus !== focus) return // 그사이 다른 곳을 골랐다
+        explain.show({ task: r.task, model: r.model, sections: r.sections }, item.detail)
+      })
+      // 저장된 결과가 없으면(거절·오류로 끝났던 해설) 다시 요청한다
+      .catch(() => {
+        if (get().focus === focus) explain.run(paperId, focus, item.detail)
+      })
   },
   scrollToBlock: (blockId) => set({ scrollTarget: { blockId, nonce: Date.now() } }),
   flashBlock: (blockId) => {
@@ -98,4 +138,8 @@ export const useReader = create<ReaderState>()((set, get) => ({
   setSideTab: (sideTab) => set({ sideTab }),
   setZoom: (zoom) => set({ zoom: Math.min(3, Math.max(0.6, zoom)) }),
   toggleShowBlocks: () => set((s) => ({ showBlocks: !s.showBlocks })),
+  setAutoExplain: (on) => {
+    writeAutoExplain(on)
+    set({ autoExplain: on })
+  },
 }))

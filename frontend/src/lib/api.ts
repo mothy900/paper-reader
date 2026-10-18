@@ -102,6 +102,10 @@ export const api = {
   fileUrl: (paperId: string) => `/api/papers/${paperId}/file`,
   getUsage: (paperId: string) => request<Usage>(`/papers/${paperId}/usage`),
   getHistory: (paperId: string) => request<HistoryItem[]>(`/papers/${paperId}/history`),
+  getHistoryResult: (paperId: string, historyId: number) =>
+    request<{ task: string; model: string; sections: Record<string, string> }>(
+      `/papers/${paperId}/history/${historyId}`,
+    ),
   getProfile: () => request<Profile | null>('/profile'),
   getPrep: (paperId: string) =>
     request<{
