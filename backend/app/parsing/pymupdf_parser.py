@@ -9,14 +9,19 @@ from app.parsing.base import ParsedBlock, ParsedDocument
 from app.text import get_processor, normalize
 
 # 파싱 결과(블록 id·텍스트·문장 경계)가 바뀌는 수정을 하면 올린다
-PARSER_VERSION = "pymupdf-3"
+PARSER_VERSION = "pymupdf-4"
 
 _TEXT_FLAGS = pymupdf.TEXT_DEHYPHENATE | pymupdf.TEXT_PRESERVE_WHITESPACE
-_CAPTION_RE = re.compile(r"^(fig\.|figure|table|algorithm)\s*\d+", re.IGNORECASE)
+_CAPTION_RE = re.compile(
+    # 번호 뒤 대문자 조건만은 대소문자를 구분한다 (IGNORECASE면 "Table 2 summarizes"도 걸린다)
+    r"^(fig\.|figure|table|algorithm)\s*\d+[a-z]?(?=\s*[.:|]|\s*$|\s+(?-i:[A-Z])|\s+[(\[])",
+    re.IGNORECASE,
+)
 _NUMBERED_HEADING_RE = re.compile(r"^(\d+(\.\d+)*\.?|[IVX]+\.|[A-Z](\.\d+)*\.?)\s+\S")
 # 기울임체 제목은 숫자 번호만 인정한다 ("J. Smith" 같은 기울임체 이름을 제목으로 오인하지 않도록)
 _DIGIT_HEADING_RE = re.compile(r"^\d+(\.\d+)*\.?\s+\S")
-_HEADING_NUMBER_RE = re.compile(r"^(\d+(?:\.\d+)*|[A-Z](?:\.\d+)*|[IVX]+)\.?\s")
+# 글자 번호는 점이 있을 때만 ("A." "A.1"). "A Survey of …" 같은 제목을 부록 번호로 오인하지 않게.
+_HEADING_NUMBER_RE = re.compile(r"^(\d+(?:\.\d+)*\.?|[A-Z](?:\.\d+)+\.?|[A-Z]\.|[IVX]+\.)\s")
 # 1쪽에서 번호 없이도 제목으로 인정하는 섹션 이름. 나머지(저자 줄, 저널 이름)는 본문으로 내린다.
 _FRONT_SECTION_RE = re.compile(
     r"^(abstract|introduction|background|related work|keywords?|index terms|"
@@ -48,10 +53,30 @@ class _RawBlock:
     line_count: int
     is_image: bool = False
     hidden: bool = False
+    is_table: bool = False
     all_italic: bool = False
     is_equation: bool = False
     last_line: str = ""
     last_line_x0: float = 0.0
+    caption_len: int = 0  # 표 블록일 때 text 앞부분의 캡션 길이
+
+
+@dataclass
+class _Line:
+    text: str
+    bbox: tuple[float, float, float, float]
+    x0: float
+    sizes: list[float]
+    bold: list[bool]
+    italic: list[bool]
+
+    @property
+    def size(self) -> float:
+        return max(self.sizes)
+
+    @property
+    def all_bold(self) -> bool:
+        return all(self.bold)
 
 
 @dataclass
@@ -77,6 +102,7 @@ def parse_pdf(data: bytes) -> ParsedDocument:
 
         types = [_classify(rb, body_size) for rb in raw]
         _demote_front_matter(raw, types, _meta_title(doc))
+        raw, types = _build_tables(raw, types, body_size)
 
         blocks: list[ParsedBlock] = []
         per_page: Counter[int] = Counter()
@@ -125,12 +151,8 @@ def _extract_page(page: pymupdf.Page) -> _PageResult:
             result.blocks.append(_RawBlock(page_no, "", bbox, 0, False, 0, is_image=True))
             continue
 
-        lines: list[str] = []
-        last_x0 = 0.0
+        lines: list[_Line] = []
         hidden_lines: list[str] = []
-        sizes: list[float] = []
-        bold: list[bool] = []
-        italic: list[bool] = []
         for line in block["lines"]:
             if not _is_horizontal(line["dir"]):
                 continue  # arXiv 옆면 스탬프 등 회전된 텍스트는 본문이 아니다
@@ -142,15 +164,18 @@ def _extract_page(page: pymupdf.Page) -> _PageResult:
                 hidden_lines.append("".join(s["text"] for s in hidden).strip())
             if not visible_text:
                 continue
-            lines.append(_line_text(shown).strip())
-            last_x0 = min(sp["bbox"][0] for sp in visible_text)
-            sizes.extend(s["size"] for s in visible_text)
-            bold.extend(
-                bool(s["flags"] & _BOLD_FLAG) or "bold" in s["font"].lower() for s in visible_text
-            )
-            italic.extend(
-                bool(s["flags"] & _ITALIC_FLAG) or any(k in s["font"].lower() for k in ("italic", "oblique"))
-                for s in visible_text
+            lines.append(
+                _Line(
+                    text=_line_text(shown).strip(),
+                    bbox=tuple(line["bbox"]),
+                    x0=min(sp["bbox"][0] for sp in visible_text),
+                    sizes=[s["size"] for s in visible_text],
+                    bold=[bool(s["flags"] & _BOLD_FLAG) or "bold" in s["font"].lower() for s in visible_text],
+                    italic=[
+                        bool(s["flags"] & _ITALIC_FLAG) or any(k in s["font"].lower() for k in ("italic", "oblique"))
+                        for s in visible_text
+                    ],
+                )
             )
 
         if hidden_lines:
@@ -163,23 +188,66 @@ def _extract_page(page: pymupdf.Page) -> _PageResult:
                 )
             continue
 
-        text = normalize(_join_lines(lines))
-        if not text or _is_page_artifact(text):
-            continue
-        result.blocks.append(
-            _RawBlock(
-                page_no,
-                text,
-                bbox,
-                max(sizes),
-                all(bold),
-                len(lines),
-                all_italic=all(italic),
-                last_line=normalize(lines[-1]),
-                last_line_x0=last_x0,
+        groups = _split_leading_heading(lines)
+        for group in groups:
+            text = normalize(_join_lines([ln.text for ln in group]))
+            if not text or _is_page_artifact(text):
+                continue
+            group_bbox = bbox if len(groups) == 1 else _union([ln.bbox for ln in group])
+            result.blocks.append(
+                _RawBlock(
+                    page_no,
+                    text,
+                    group_bbox,
+                    max(sz for ln in group for sz in ln.sizes),
+                    all(b for ln in group for b in ln.bold),
+                    len(group),
+                    all_italic=all(i for ln in group for i in ln.italic),
+                    last_line=normalize(group[-1].text),
+                    last_line_x0=group[-1].x0,
+                )
             )
-        )
     return result
+
+
+def _split_leading_heading(lines: list[_Line]) -> list[list[_Line]]:
+    """블록 첫머리의 제목 줄을 떼어낸다.
+
+    Wiley 등 일부 학술지 PDF는 "MATERIALS AND METHODS" 같은 섹션 제목이 바로 뒤 본문과 한 블록으로 묶여 있어,
+    블록 단위로만 보면 제목을 놓친다. 앞쪽 줄이 본문보다 확실히 크거나(15% 이상), 본문은 굵지 않은데
+    앞쪽 줄만 굵으면 그 줄들을 제목으로 분리한다. 한 줄 안에서 이어지는 소제목("Sample preparation. The …")은 건드리지 않는다.
+    """
+    if len(lines) < 2:
+        return [lines]
+    rest_sizes = sorted(sz for ln in lines[1:] for sz in ln.sizes)
+    body = rest_sizes[len(rest_sizes) // 2]
+    rest_bold = any(ln.all_bold for ln in lines[1:])
+
+    def heading_like(ln: _Line) -> bool:
+        letters = sum(ch.isalpha() for ch in ln.text)
+        if len(ln.text) > 100 or ln.text.endswith(".") or letters < 3 or letters / len(ln.text) < 0.6:
+            return False
+        if _EQUATION_NUMBER_RE.match(ln.text):
+            return False
+        bigger = ln.size >= body * 1.15
+        bold_only = ln.all_bold and not rest_bold and ln.size >= body * 0.95
+        return bigger or bold_only
+
+    k = 0
+    while k < len(lines) - 1 and heading_like(lines[k]):
+        k += 1
+    if k == 0 or k > 2:
+        return [lines]
+    return [lines[:k], lines[k:]]
+
+
+def _union(boxes: list[tuple[float, float, float, float]]) -> tuple[float, float, float, float]:
+    return (
+        round(min(b[0] for b in boxes), 2),
+        round(min(b[1] for b in boxes), 2),
+        round(max(b[2] for b in boxes), 2),
+        round(max(b[3] for b in boxes), 2),
+    )
 
 
 def _to_displayed_coordinates(data: dict, page: pymupdf.Page) -> None:
@@ -487,6 +555,133 @@ def _classify(rb: _RawBlock, body_size: float) -> BlockType:
     return BlockType.paragraph
 
 
+_TABLE_MAX_GAP = 40.0  # pt. 표 조각 사이 세로 간격이 이보다 크면 표가 끝난 것으로 본다
+
+
+def _build_tables(
+    raw: list[_RawBlock], types: list[BlockType], body_size: float
+) -> tuple[list[_RawBlock], list[BlockType]]:
+    """"Table N" 캡션 아래로 이어지는 셀 블록들을 캡션과 합쳐 하나의 표(table) 블록으로 만든다.
+
+    학술지 표는 세로선이 없어 표 구조 추출(find_tables)이 실패하는 경우가 많다. 구조 대신 영역만 찾고,
+    내용은 영역을 이미지로 잘라 보여주거나 LLM에 보낸다.
+    """
+    consumed: set[int] = set()
+    replace: dict[int, _RawBlock] = {}
+    for ci, cap in enumerate(raw):
+        if types[ci] is not BlockType.caption or not cap.text.lower().startswith("table") or ci in consumed:
+            continue
+        same_page = [i for i, rb in enumerate(raw) if rb.page == cap.page and i != ci and not rb.hidden]
+        parts = _collect_table_parts(raw, types, same_page, cap, consumed, body_size, below=True)
+        if not parts:
+            # 학회 논문은 캡션이 표 아래에 오는 경우가 많다
+            parts = _collect_table_parts(raw, types, same_page, cap, consumed, body_size, below=False)
+        if not parts:
+            continue
+        # 영역 안에 완전히 들어가는 블록(머리행, 제목 줄 등 셀처럼 보이지 않아 빠진 것)도 표에 포함한다
+        region = _union([cap.bbox, *(raw[i].bbox for i in parts)])
+        inside = [
+            i
+            for i in same_page
+            if i not in parts and i not in consumed and types[i] is not BlockType.heading and _contains(region, raw[i].bbox)
+        ]
+        parts = sorted({*parts, *inside}, key=lambda i: (raw[i].bbox[1], raw[i].bbox[0]))
+        group = [cap, *(raw[i] for i in parts)]
+        caption_text = cap.text
+        first = raw[parts[0]]
+        if -4 <= first.bbox[1] - cap.bbox[3] < 8 and first.line_count <= 2 and not first.is_image:
+            caption_text = f"{cap.text} {first.text}"  # 제목 이어지는 줄을 캡션에 포함
+        cells = " ".join(raw[i].text for i in parts if raw[i].text and raw[i].text not in caption_text)
+        replace[ci] = _RawBlock(
+            page=cap.page,
+            text=f"{caption_text} {cells}".strip(),
+            bbox=_union([rb.bbox for rb in group]),
+            max_size=cap.max_size,
+            all_bold=False,
+            line_count=sum(max(rb.line_count, 1) for rb in group),
+            is_table=True,
+            caption_len=len(caption_text),
+        )
+        consumed.update(parts)
+
+    out_raw: list[_RawBlock] = []
+    out_types: list[BlockType] = []
+    for i, rb in enumerate(raw):
+        if i in consumed:
+            continue
+        if i in replace:
+            out_raw.append(replace[i])
+            out_types.append(BlockType.table)
+        else:
+            out_raw.append(rb)
+            out_types.append(types[i])
+    return out_raw, out_types
+
+
+def _collect_table_parts(
+    raw: list[_RawBlock],
+    types: list[BlockType],
+    candidates: list[int],
+    cap: _RawBlock,
+    consumed: set[int],
+    body_size: float,
+    *,
+    below: bool,
+) -> list[int]:
+    """캡션에서 한 방향(아래 또는 위)으로 표 셀처럼 보이는 블록을 모은다. 본문 문단·제목을 만나면 멈춘다."""
+    if below:
+        order = sorted((i for i in candidates if raw[i].bbox[1] >= cap.bbox[3] - 2), key=lambda i: raw[i].bbox[1])
+    else:
+        order = sorted((i for i in candidates if raw[i].bbox[3] <= cap.bbox[1] + 2), key=lambda i: -raw[i].bbox[3])
+    parts: list[int] = []
+    edge = cap.bbox[3] if below else cap.bbox[1]
+    title_allowed = below
+    for i in order:
+        rb = raw[i]
+        if not _overlaps_x(rb.bbox, cap.bbox):
+            continue
+        gap = rb.bbox[1] - edge if below else edge - rb.bbox[3]
+        if gap > _TABLE_MAX_GAP:
+            break
+        if types[i] in (BlockType.heading, BlockType.caption, BlockType.equation) or i in consumed:
+            break
+        # 캡션 바로 아래 한두 줄은 표 제목의 이어지는 줄일 수 있다 ("Table 1" / "Parameter of …")
+        is_title = title_allowed and rb.line_count <= 2 and gap < 8 and not rb.is_image
+        title_allowed = False
+        if not (is_title or _table_like(rb, types[i], body_size)):
+            break
+        parts.append(i)
+        edge = max(edge, rb.bbox[3]) if below else min(edge, rb.bbox[1])
+    return sorted(parts, key=lambda i: raw[i].bbox[1])
+
+
+def _contains(outer: tuple[float, float, float, float], inner: tuple[float, float, float, float]) -> bool:
+    tol = 1.0
+    return (
+        inner[0] >= outer[0] - tol
+        and inner[1] >= outer[1] - tol
+        and inner[2] <= outer[2] + tol
+        and inner[3] <= outer[3] + tol
+    )
+
+
+def _overlaps_x(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> bool:
+    return min(a[2], b[2]) - max(a[0], b[0]) > 0
+
+
+def _table_like(rb: _RawBlock, block_type: BlockType, body_size: float) -> bool:
+    """표 셀로 보이는 블록: 그림 조각, 본문보다 작은 글씨, 숫자 위주, 짧은 줄."""
+    if rb.is_image or block_type is BlockType.figure:
+        return True
+    if rb.max_size < body_size * 0.97:
+        return True
+    text = rb.text
+    digits = sum(ch.isdigit() for ch in text)
+    if text and digits / len(text) > 0.25:
+        return True
+    return len(text) / max(rb.line_count, 1) < 35 and not text.endswith(".")
+
+
 def _demote_front_matter(raw: list[_RawBlock], types: list[BlockType], meta_title: str) -> None:
     """1쪽의 번호 없는 큰 글씨 중 논문 제목과 일반 섹션 이름만 제목으로 남긴다.
 
@@ -520,6 +715,9 @@ def _loose(text: str) -> str:
 def _sentences(rb: _RawBlock, block_type: BlockType, processor) -> list[tuple[int, int]]:
     if rb.hidden or block_type is BlockType.figure:
         return []
+    if block_type is BlockType.table:
+        # 표는 캡션만 문장으로 둔다 (셀 텍스트는 문장이 아니다)
+        return [(0, rb.caption_len or len(rb.text))]
     if block_type in (BlockType.heading, BlockType.equation):
         return [(0, len(rb.text))]
     return processor.split_sentences(rb.text)
@@ -533,14 +731,20 @@ def _assign_heading_levels(blocks: list[ParsedBlock], raw: list[_RawBlock]) -> N
     headings = [(b, rb) for b, rb in zip(blocks, raw, strict=True) if b.type is BlockType.heading]
     if not headings:
         return
-    numbered = any(_HEADING_NUMBER_RE.match(b.text) for b, _ in headings)
+    # 논문 제목(1쪽 첫 제목)은 섹션이 아니다. 번호 판단과 크기 순위에서 뺀다.
+    title = headings[0] if headings[0][0].page == 1 else None
+    if title:
+        title[0].level = 1
+    rest = [h for h in headings if h is not title]
+    numbered = any(_HEADING_NUMBER_RE.match(b.text) for b, _ in rest)
     if numbered:
-        for b, _ in headings:
+        for b, _ in rest:
             m = _HEADING_NUMBER_RE.match(b.text)
-            b.level = min(3, m.group(1).count(".") + 1) if m else 1
+            b.level = min(3, m.group(1).rstrip(".").count(".") + 1) if m else 1
         return
-    sizes = sorted({round(rb.max_size, 1) for _, rb in headings}, reverse=True)
-    for b, rb in headings:
+    # 빼지 않으면 제목 크기 때문에 섹션 제목이 모두 2단계로 밀린다
+    sizes = sorted({round(rb.max_size, 1) for _, rb in rest}, reverse=True)
+    for b, rb in rest:
         b.level = min(3, sizes.index(round(rb.max_size, 1)) + 1)
 
 

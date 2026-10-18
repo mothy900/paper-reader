@@ -16,7 +16,7 @@ export function TranslatePanel() {
     return <p className="muted">번역할 문단을 클릭하거나 드래그하세요.</p>
   }
   const targets = blocks.filter(
-    (b) => focus.blockIds.includes(b.id) && b.type !== 'figure' && b.type !== 'equation',
+    (b) => focus.blockIds.includes(b.id) && !['figure', 'equation', 'table'].includes(b.type),
   )
   if (targets.length === 0) return <p className="muted">이 부분은 번역할 텍스트가 없어요.</p>
 

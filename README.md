@@ -44,12 +44,14 @@ backend/
     text/              텍스트 정규화, 언어별 문장 분리
     importing/         주소·arXiv ID·DOI로 PDF와 메타데이터 가져오기 (안전한 fetch 포함)
     llm/               LLM 계층: 작업 정의, 프롬프트(prompts/*.md), 컨텍스트 구성, 스트리밍, 결과 캐시, 비용
+                       prep.py — 읽기 전 준비 카드 입력 구성과 근거 검증
     papers.py          논문 생성·파싱 결과 반영 (업로드·가져오기·재파싱 공용)
     routers/papers.py  업로드·가져오기·목록·파일·블록 API
     routers/llm.py     해설·번역(SSE), 비용, 해설 기록, 프로필 API
     scripts/reparse.py 기존 논문 재파싱
   alembic/             DB 마이그레이션
   tests/
+  evals/               정답 세트와 평가 스크립트 (실제 API)
 frontend/
   src/
     components/        Header, LeftSidebar, PdfViewer, SideInfo
@@ -57,6 +59,15 @@ frontend/
     store.ts           Zustand 상태 (포커스 등)
 shared/
   normalize_cases.json 프론트·백엔드 정규화 공통 테스트 케이스
+```
+
+## 평가 (실제 API 사용, 비용 발생)
+
+데이터 뼈대 카드를 정답 세트(`backend/evals/prep_gold.json`)와 비교한다. 논문은 로컬 DB에서 제목으로 찾는다 (PDF는 저장소에 없음).
+저장된 결과가 있으면 다시 호출하지 않는다.
+
+```bash
+cd backend && uv run python -m evals.prep_eval
 ```
 
 ## 파서를 바꾼 뒤

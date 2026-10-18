@@ -1,5 +1,5 @@
 export type PaperStatus = 'parsing' | 'ready' | 'failed'
-export type BlockType = 'heading' | 'paragraph' | 'caption' | 'figure' | 'equation'
+export type BlockType = 'heading' | 'paragraph' | 'caption' | 'figure' | 'equation' | 'table'
 
 export interface Paper {
   id: string
@@ -103,6 +103,12 @@ export const api = {
   getUsage: (paperId: string) => request<Usage>(`/papers/${paperId}/usage`),
   getHistory: (paperId: string) => request<HistoryItem[]>(`/papers/${paperId}/history`),
   getProfile: () => request<Profile | null>('/profile'),
+  getPrep: (paperId: string) =>
+    request<{
+      concepts: import('./prep').ConceptsResult | null
+      data: import('./prep').DataResult | null
+      data_scope: string
+    }>(`/papers/${paperId}/prep`),
   putProfile: (profile: Profile) =>
     request<Profile>('/profile', {
       method: 'PUT',

@@ -18,6 +18,11 @@ const SECTION_LABELS: Record<string, [string, string][]> = {
     ['general', '일반적인 의미'],
     ['plain', '쉽게 말하면'],
   ],
+  explain_table: [
+    ['summary', '이 표가 보여주는 것'],
+    ['how_to_read', '읽는 법'],
+    ['key_points', '눈여겨볼 점'],
+  ],
   explain_equation: [
     ['meaning', '이 식이 말하는 것'],
     ['symbols', '기호'],

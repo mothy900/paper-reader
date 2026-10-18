@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import pymupdf
 from sqlmodel import Session, col, select
 
-from app.llm.tasks import EXPLAIN_EQUATION, EXPLAIN_SENTENCE, EXPLAIN_WORD, Task
+from app.llm.tasks import EXPLAIN_EQUATION, EXPLAIN_SENTENCE, EXPLAIN_TABLE, EXPLAIN_WORD, Task
 from app.models import Block, BlockType, Paper, Sentence
 from app.storage import Storage
 
@@ -46,6 +46,8 @@ def _clip(text: str, limit: int) -> str:
 def choose_task(focus: Focus, blocks: dict[str, Block]) -> Task:
     if any(blocks[b].type is BlockType.equation for b in focus.block_ids if b in blocks):
         return EXPLAIN_EQUATION
+    if any(blocks[b].type is BlockType.table for b in focus.block_ids if b in blocks):
+        return EXPLAIN_TABLE
     words = re.findall(r"\S+", focus.text)
     if focus.source == "selection" and 0 < len(words) <= WORD_MAX_WORDS and len(focus.sentence_ids) <= 1:
         return EXPLAIN_WORD
@@ -81,7 +83,26 @@ def prepare_explain(session: Session, storage: Storage, paper: Paper, focus: Foc
                 "before": _clip(before, 1200),
                 "after": _clip(after, 1200),
             },
-            image_png=_render_block(storage, paper, eq),
+            image_png=render_block_png(storage, paper, eq),
+        )
+
+    if task is EXPLAIN_TABLE:
+        table = next(b for b in focused if b.type is BlockType.table)
+        idx = all_blocks.index(table)
+        # 표를 언급하는 본문 문단 하나 (해석의 단서)
+        label = re.match(r"(table\s*\d+)", table.text, re.IGNORECASE)
+        context = next(
+            (
+                b.text
+                for b in all_blocks
+                if b.type is BlockType.paragraph and label and re.search(rf"\b{re.escape(label.group(1))}\b", b.text, re.IGNORECASE)
+            ),
+            next((b.text for b in reversed(all_blocks[:idx]) if b.type is BlockType.paragraph), ""),
+        )
+        return Prepared(
+            task,
+            {"section_title": section_title, "table_text": _clip(table.text, 3000), "context": _clip(context, 1500)},
+            image_png=render_block_png(storage, paper, table),
         )
 
     paragraph = _clip(" ".join(b.text for b in focused), MAX_PARAGRAPH_CHARS)
@@ -149,12 +170,20 @@ def _other_mentions(all_blocks: list[Block], term: str, exclude: set[str]) -> st
     return "\n".join(f"- {s}" for s in found)
 
 
-def _render_block(storage: Storage, paper: Paper, block: Block, dpi: int = 200) -> bytes | None:
-    """블록 영역을 PNG로 잘라낸다. 블록 좌표는 화면 방향 기준이라 회전된 페이지는 되돌려서 자른다."""
+MAX_IMAGE_EDGE = 1568  # px. 이보다 크면 API가 줄여서 보므로 미리 맞춘다 (토큰도 절약)
+
+
+def render_block_png(storage: Storage, paper: Paper, block: Block, dpi: int = 200) -> bytes | None:
+    """블록 영역을 PNG로 잘라낸다. 블록 좌표는 화면 방향 기준이라 회전된 페이지는 되돌려서 자른다.
+
+    회전된 페이지는 PyMuPDF가 회전을 적용해 그리므로 결과 이미지는 화면에 보이는 방향이다.
+    """
     try:
         with pymupdf.open(stream=storage.load(paper.file_key), filetype="pdf") as doc:
             page = doc[block.page - 1]
             clip = pymupdf.Rect(block.x0 - 4, block.y0 - 4, block.x1 + 4, block.y1 + 4)
+            longest_pt = max(clip.width, clip.height)
+            dpi = min(dpi, int(MAX_IMAGE_EDGE / (longest_pt / 72)))
             if page.rotation:
                 clip = clip * page.derotation_matrix
             return page.get_pixmap(clip=clip, dpi=dpi).tobytes("png")

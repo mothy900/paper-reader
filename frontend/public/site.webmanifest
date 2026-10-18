@@ -1,0 +1,21 @@
+{
+  "name": "Reader",
+  "short_name": "Reader",
+  "description": "논문을 쉽게 읽도록 돕는 리더",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ee",
+  "theme_color": "#2f5a7a",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

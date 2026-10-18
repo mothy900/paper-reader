@@ -42,3 +42,7 @@ export const useSaveProfile = () => {
     onSuccess: (profile) => qc.setQueryData(['profile'], profile),
   })
 }
+
+/** 저장된 준비 카드 (LLM 호출 없음) */
+export const useStoredPrep = (paperId: string | null) =>
+  useQuery({ queryKey: ['prep', paperId], queryFn: () => api.getPrep(paperId!), enabled: paperId !== null })

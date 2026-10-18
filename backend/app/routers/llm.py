@@ -12,7 +12,8 @@ from app.config import settings
 from app.db import get_session
 from app.llm.client import get_llm_client
 from app.llm.context import Focus, FocusRange, prepare_explain, prepare_translate
-from app.llm.runner import Event, RunRequest, run_task
+from app.llm.prep import PrepInput, prepare_concepts, prepare_data, verify_concepts, verify_data
+from app.llm.runner import Event, RunRequest, cached_sections, run_task
 from app.llm.tasks import TRANSLATE, Detail
 from app.models import ExplainHistory, LlmCall, Paper, UserProfile
 from app.storage import Storage, get_storage
@@ -141,6 +142,82 @@ def translate(paper_id: str, body: TranslateRequest, session: SessionDep, client
         paper_id=paper.id,
     )
     return _sse(run_task(req, client))
+
+
+PrepKind = Literal["concepts", "data"]
+
+
+def _prep_request(
+    session: Session, storage: Storage, paper: Paper, kind: PrepKind, *, render: bool = True
+) -> tuple[RunRequest, PrepInput]:
+    prep = (
+        prepare_concepts(session, paper)
+        if kind == "concepts"
+        else prepare_data(session, storage, paper, render=render)
+    )
+    profile = _profile(session)
+    req = RunRequest(
+        task=prep.task,
+        detail=Detail.basic,
+        values=prep.values,
+        background=profile.background,
+        level=profile.level,
+        user_id=settings.default_user_id,
+        paper_id=paper.id,
+        labeled_images=prep.images,
+    )
+    return req, prep
+
+
+def _verifier(kind: PrepKind, paper_id: str):
+    verify = verify_concepts if kind == "concepts" else verify_data
+
+    def run(result: dict) -> dict:
+        from app.db import engine  # 스트리밍 중에는 요청 세션이 닫혀 있을 수 있어 새 세션을 연다
+
+        with Session(engine) as s:
+            return verify(result, s, paper_id)
+
+    return run
+
+
+@router.post("/papers/{paper_id}/prep/{kind}")
+def make_prep(
+    paper_id: str, kind: PrepKind, session: SessionDep, storage: StorageDep, client: ClientDep
+) -> StreamingResponse:
+    """읽기 전 준비 카드(사전지식 / 데이터 뼈대)를 만든다. 이미 있으면 저장된 결과를 돌려준다."""
+    paper = _paper(session, paper_id)
+    req, prep = _prep_request(session, storage, paper, kind)
+
+    async def events() -> AsyncIterator[Event]:
+        async for e in run_task(req, client, _verifier(kind, paper.id)):
+            if e["event"] == "meta":
+                e["data"]["scope"] = prep.scope
+                e["data"]["tables"] = [label for label, _ in prep.images]
+            yield e
+
+    return _sse(events())
+
+
+class PrepOut(SQLModel):
+    concepts: dict | None
+    data: dict | None
+    data_scope: str
+
+
+@router.get("/papers/{paper_id}/prep", response_model=PrepOut)
+def get_prep(paper_id: str, session: SessionDep, storage: StorageDep) -> PrepOut:
+    """저장된 준비 카드만 돌려준다 (LLM 호출 없음). 없으면 null."""
+    paper = _paper(session, paper_id)
+    out: dict = {}
+    scope = ""
+    for kind in ("concepts", "data"):
+        req, prep = _prep_request(session, storage, paper, kind, render=False)
+        hit = cached_sections(req.cache_key())
+        out[kind] = _verifier(kind, paper.id)(json.loads(hit["json"])) if hit else None
+        if kind == "data":
+            scope = prep.scope
+    return PrepOut(concepts=out["concepts"], data=out["data"], data_scope=scope)
 
 
 @router.get("/papers/{paper_id}/usage", response_model=UsageOut)

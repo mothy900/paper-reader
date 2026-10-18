@@ -1,29 +1,23 @@
-import type { Scope, SideTab } from '../store'
+import type { SideTab } from '../store'
 import { useReader } from '../store'
 import { ExplainPanel } from './ExplainPanel'
 import { FocusView } from './FocusView'
+import { StartGuide } from './StartGuide'
 import { TranslatePanel } from './TranslatePanel'
 
-const TABS: { id: SideTab; label: string }[] = [
-  { id: 'translation', label: '번역' },
-  { id: 'explain', label: '해설' },
-  { id: 'mentions', label: '관련 언급' },
-  { id: 'qa', label: 'Q&A' },
-]
-
-const SCOPES: { id: Scope; label: string }[] = [
-  { id: 'paper', label: '전체' },
-  { id: 'section', label: '섹션' },
-  { id: 'paragraph', label: '문단' },
-  { id: 'selection', label: '선택' },
+// ready: false인 탭은 아직 기능이 없어 누를 수 없게 보여준다 (동작하지 않는 버튼을 누르게 하지 않는다)
+const TABS: { id: SideTab; label: string; ready: boolean }[] = [
+  { id: 'prep', label: '준비', ready: true },
+  { id: 'explain', label: '해설', ready: true },
+  { id: 'translation', label: '번역', ready: true },
+  { id: 'mentions', label: '관련 언급', ready: false },
+  { id: 'qa', label: 'Q&A', ready: false },
 ]
 
 export function SideInfo() {
   const sideTab = useReader((s) => s.sideTab)
   const setSideTab = useReader((s) => s.setSideTab)
-  const scope = useReader((s) => s.scope)
-  const setScope = useReader((s) => s.setScope)
-  const hasFocus = useReader((s) => s.focus !== null)
+  const paperId = useReader((s) => s.paperId)
 
   return (
     <aside className="side-info">
@@ -34,28 +28,17 @@ export function SideInfo() {
             type="button"
             role="tab"
             aria-selected={sideTab === t.id}
+            disabled={!t.ready}
+            title={t.ready ? undefined : '다음 단계에서 추가돼요'}
             onClick={() => setSideTab(t.id)}
           >
             {t.label}
+            {!t.ready && <span className="tab-soon">준비 중</span>}
           </button>
         ))}
       </nav>
-      <div className="scope" role="radiogroup" aria-label="범위">
-        {SCOPES.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            role="radio"
-            aria-checked={scope === s.id}
-            disabled={!hasFocus && (s.id === 'paragraph' || s.id === 'section')}
-            title={!hasFocus && (s.id === 'paragraph' || s.id === 'section') ? '본문을 클릭하거나 드래그하세요' : undefined}
-            onClick={() => setScope(s.id)}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
       <div className="side-body">
+        {sideTab === 'prep' && paperId && <StartGuide paperId={paperId} />}
         {sideTab === 'explain' && (
           <>
             <FocusView />
@@ -63,7 +46,6 @@ export function SideInfo() {
           </>
         )}
         {sideTab === 'translation' && <TranslatePanel />}
-        {(sideTab === 'mentions' || sideTab === 'qa') && <p className="muted">다음 단계에서 연결됩니다.</p>}
       </div>
     </aside>
   )

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Paper, UploadResult } from '../lib/api'
+import { formatAddedAt } from '../lib/format'
 import { useBlocks, useImportPaper, usePapers, useUploadPaper } from '../lib/queries'
 import { useReader } from '../store'
 
@@ -87,6 +88,9 @@ export function LeftSidebar() {
               >
                 <span className="paper-title">{p.title}</span>
                 <span className="paper-meta">{paperMeta(p)}</span>
+                <span className="paper-meta" title={new Date(p.created_at).toLocaleString('ko-KR')}>
+                  {formatAddedAt(p.created_at)} 추가
+                </span>
               </button>
             </li>
           ))}

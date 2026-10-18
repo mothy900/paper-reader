@@ -4,7 +4,14 @@ import { usePapers, useProfile, useUsage } from '../lib/queries'
 import { useReader } from '../store'
 import { ProfileDialog } from './ProfileDialog'
 
-export function Header() {
+interface HeaderProps {
+  sidebarOpen: boolean
+  sideOpen: boolean
+  onToggleSidebar: () => void
+  onToggleSide: () => void
+}
+
+export function Header({ sidebarOpen, sideOpen, onToggleSidebar, onToggleSide }: HeaderProps) {
   const paperId = useReader((s) => s.paperId)
   const zoom = useReader((s) => s.zoom)
   const setZoom = useReader((s) => s.setZoom)
@@ -20,6 +27,15 @@ export function Header() {
 
   return (
     <header className="header">
+      <button
+        type="button"
+        className="header-button"
+        aria-pressed={sidebarOpen}
+        onClick={onToggleSidebar}
+        title={sidebarOpen ? '목차 닫기' : '목차 열기'}
+      >
+        목차
+      </button>
       <span className="brand">Reader</span>
       <span className="header-title" title={paper?.title}>
         {paper?.title ?? ''}
@@ -42,6 +58,15 @@ export function Header() {
       )}
       <button type="button" className="header-button" onClick={() => setEditing(true)}>
         내 정보
+      </button>
+      <button
+        type="button"
+        className="header-button"
+        aria-pressed={sideOpen}
+        onClick={onToggleSide}
+        title={sideOpen ? '해설 패널 닫기' : '해설 패널 열기'}
+      >
+        해설 패널
       </button>
       {showProfile && <ProfileDialog initial={profile.data ?? null} onClose={() => setEditing(false)} />}
       {paper && (
