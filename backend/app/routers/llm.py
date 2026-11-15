@@ -14,8 +14,8 @@ from app.llm.client import get_llm_client
 from app.llm.context import Focus, FocusRange, prepare_explain, prepare_translate
 from app.llm.prep import PrepInput, prepare_concepts, prepare_data, verify_concepts, verify_data
 from app.llm.runner import Event, RunRequest, cached_sections, run_task
-from app.llm.tasks import TRANSLATE, Detail
-from app.models import ExplainHistory, LlmCall, LlmResult, Paper, UserProfile
+from app.llm.tasks import EXPLAIN_WORD, TRANSLATE, Detail
+from app.models import ExplainHistory, KnownTerm, LlmCall, LlmResult, Paper, UserProfile
 from app.storage import Storage, get_storage
 
 router = APIRouter(prefix="/api", tags=["llm"])
@@ -44,6 +44,8 @@ class FocusIn(SQLModel):
 class ExplainRequest(SQLModel):
     focus: FocusIn
     detail: Detail = Detail.basic
+    # 다른 논문에서 본 용어여도 저장된 설명을 건너뛰고 이 논문 기준으로 새로 해설한다
+    skip_known: bool = False
 
 
 class TranslateRequest(SQLModel):
@@ -119,8 +121,46 @@ def explain(
         paper_id=paper.id,
         image_png=prepared.image_png,
     )
+    if prepared.term_key and body.detail is Detail.basic:
+        if not body.skip_known and (known := _known_result(session, paper, prepared.term_key)):
+            term, result = known
+            _remember(session, paper.id, req, body, cache_key=term.cache_key)
+            return _sse(_known_events(term, result))
+        _learn_term(session, paper, prepared.term_key, body.focus.text, req.cache_key())
     _remember(session, paper.id, req, body)
     return _sse(run_task(req, client))
+
+
+def _known_result(session: Session, paper: Paper, key: str) -> tuple[KnownTerm, LlmResult] | None:
+    """다른 논문에서 이미 해설을 본 용어면 (용어, 저장된 결과)."""
+    term = session.get(KnownTerm, (settings.default_user_id, key))
+    if term is None or term.paper_id == paper.id:
+        return None
+    result = session.get(LlmResult, term.cache_key)
+    return (term, result) if result else None
+
+
+async def _known_events(term: KnownTerm, result: LlmResult) -> AsyncIterator[Event]:
+    known = {"paper_id": term.paper_id, "paper_title": term.paper_title, "label": term.label}
+    yield {"event": "meta", "data": {"task": EXPLAIN_WORD.name, "model": result.model, "cached": True, "known": known}}
+    for name in EXPLAIN_WORD.sections:
+        if name in result.sections:
+            yield {"event": "section", "data": {"name": name, "delta": result.sections[name]}}
+    yield {"event": "done", "data": {"model": result.model, "cached": True, "cost_usd": 0.0}}
+
+
+def _learn_term(session: Session, paper: Paper, key: str, label: str, cache_key: str) -> None:
+    """처음 해설을 보는 용어를 기억한다. 전에 기억한 결과가 저장되지 못했으면(거절·오류) 이번 것으로 바꾼다."""
+    term = session.get(KnownTerm, (settings.default_user_id, key))
+    if term and session.get(LlmResult, term.cache_key):
+        return
+    term = term or KnownTerm(user_id=settings.default_user_id, key=key, label="", paper_id="", paper_title="", cache_key="")
+    term.label = " ".join(label.split())[:80]
+    term.paper_id = paper.id
+    term.paper_title = paper.title
+    term.cache_key = cache_key
+    session.add(term)
+    session.commit()
 
 
 @router.post("/papers/{paper_id}/translate")
@@ -291,9 +331,14 @@ def put_profile(body: ProfileIO, session: SessionDep) -> UserProfile:
     return profile
 
 
-def _remember(session: Session, paper_id: str, req: RunRequest, body: ExplainRequest) -> None:
-    """해설 기록을 남긴다. 직전 기록과 같으면(다시 연 경우) 쌓지 않는다."""
-    key = req.cache_key()
+def _remember(
+    session: Session, paper_id: str, req: RunRequest, body: ExplainRequest, cache_key: str | None = None
+) -> None:
+    """해설 기록을 남긴다. 직전 기록과 같으면(다시 연 경우) 쌓지 않는다.
+
+    cache_key: 다른 논문에서 본 용어의 저장된 설명을 보여줬으면 그 결과의 키 (기록을 다시 열면 같은 설명이 나오게)
+    """
+    key = cache_key or req.cache_key()
     last = session.exec(
         select(ExplainHistory)
         .where(ExplainHistory.paper_id == paper_id, ExplainHistory.user_id == settings.default_user_id)

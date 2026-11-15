@@ -100,6 +100,7 @@ export const api = {
   importPaper,
   deletePaper: (paperId: string) => request<void>(`/papers/${paperId}`, { method: 'DELETE' }),
   fileUrl: (paperId: string) => `/api/papers/${paperId}/file`,
+  getGlossary: (paperId: string) => request<import('./glossary').Term[]>(`/papers/${paperId}/glossary`),
   getUsage: (paperId: string) => request<Usage>(`/papers/${paperId}/usage`),
   getHistory: (paperId: string) => request<HistoryItem[]>(`/papers/${paperId}/history`),
   getHistoryResult: (paperId: string, historyId: number) =>

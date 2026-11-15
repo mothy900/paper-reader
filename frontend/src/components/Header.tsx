@@ -3,6 +3,7 @@ import { formatCost } from '../lib/llm'
 import { usePapers, useProfile, useUsage } from '../lib/queries'
 import { useReader } from '../store'
 import { ProfileDialog } from './ProfileDialog'
+import { SettingsDialog } from './SettingsDialog'
 
 interface HeaderProps {
   sidebarOpen: boolean
@@ -15,17 +16,13 @@ export function Header({ sidebarOpen, sideOpen, onToggleSidebar, onToggleSide }:
   const paperId = useReader((s) => s.paperId)
   const zoom = useReader((s) => s.zoom)
   const setZoom = useReader((s) => s.setZoom)
-  const showBlocks = useReader((s) => s.showBlocks)
-  const toggleShowBlocks = useReader((s) => s.toggleShowBlocks)
-  const autoExplain = useReader((s) => s.autoExplain)
-  const setAutoExplain = useReader((s) => s.setAutoExplain)
   const { data: papers } = usePapers()
   const paper = papers?.find((p) => p.id === paperId)
   const { data: usage } = useUsage(paperId)
   const profile = useProfile()
-  const [editing, setEditing] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   // 프로필을 아직 입력하지 않았으면 첫 실행 안내로 띄운다
-  const showProfile = editing || (profile.isSuccess && profile.data === null)
+  const firstRun = profile.isSuccess && profile.data === null
 
   return (
     <header className="header">
@@ -58,8 +55,8 @@ export function Header({ sidebarOpen, sideOpen, onToggleSidebar, onToggleSide }:
           이 논문 {formatCost(usage.cost_usd)}
         </span>
       )}
-      <button type="button" className="header-button" onClick={() => setEditing(true)}>
-        내 정보
+      <button type="button" className="header-button" onClick={() => setSettingsOpen(true)}>
+        설정
       </button>
       <button
         type="button"
@@ -70,17 +67,13 @@ export function Header({ sidebarOpen, sideOpen, onToggleSidebar, onToggleSide }:
       >
         해설 패널
       </button>
-      {showProfile && <ProfileDialog initial={profile.data ?? null} onClose={() => setEditing(false)} />}
+      {firstRun ? (
+        <ProfileDialog onClose={() => undefined} />
+      ) : (
+        settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />
+      )}
       {paper && (
         <div className="header-tools">
-          <label className="toggle" title="켜면 문장을 드래그하는 즉시 해설해요. 드래그하며 읽는 습관이 있다면 꺼 두세요.">
-            <input type="checkbox" checked={autoExplain} onChange={(e) => setAutoExplain(e.target.checked)} />
-            드래그 해설
-          </label>
-          <label className="toggle">
-            <input type="checkbox" checked={showBlocks} onChange={toggleShowBlocks} />
-            블록 경계
-          </label>
           <button type="button" onClick={() => setZoom(zoom - 0.1)} aria-label="축소">
             −
           </button>

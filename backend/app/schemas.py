@@ -37,3 +37,14 @@ class BlockRead(SQLModel):
 
 class ImportRequest(SQLModel):
     url: str  # 웹 주소, arXiv ID, DOI
+
+
+class TermRead(SQLModel):
+    key: str
+    label: str
+    kind: str  # abbr | named | key
+    short: str | None
+    long: str | None
+    # [block_id, start, end]. 정의한 문장 (약어·이름 붙인 용어만)
+    definition: tuple[str, int, int] | None
+    occurrences: list[tuple[str, int, int]]

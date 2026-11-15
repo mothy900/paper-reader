@@ -151,14 +151,6 @@ ul {
   font-variant-numeric: tabular-nums;
 }
 
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 8px;
-  color: var(--ink-muted);
-}
-
 /* Left sidebar */
 .sidebar {
   display: flex;
@@ -948,4 +940,197 @@ button.link {
 .explain-hint {
   margin: 8px 0 0;
   font-size: 12px;
+}
+
+/* 탭의 개수 표시 */
+.tab-count {
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 16px;
+  border-radius: 8px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.link-button {
+  padding: 0;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* 관련 언급 */
+.mentions-hint {
+  line-height: 1.6;
+}
+
+.term-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.term-chips button {
+  padding: 2px 8px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.term-chips button[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.term-head {
+  margin-bottom: 16px;
+}
+
+.term-head p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.mentions-group {
+  margin-bottom: 12px;
+}
+
+.mentions-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mention {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  text-align: left;
+  border-radius: 4px;
+}
+
+.mention:hover {
+  background: var(--accent-soft);
+}
+
+.mention.is-pinned {
+  border-left: 2px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  background: var(--accent-soft);
+}
+
+.mention-text {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-reading);
+  line-height: 1.6;
+}
+
+.mention mark {
+  color: inherit;
+  background: none;
+  box-shadow: inset 0 -2px var(--accent);
+}
+
+.mentions-here {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.mentions-here::before,
+.mentions-here::after {
+  content: '';
+  flex: 1;
+  border-top: 1px dashed var(--accent);
+  opacity: 0.5;
+}
+
+/* 약어 풀이 */
+.abbr-tip {
+  position: fixed;
+  z-index: 20;
+  max-width: 360px;
+  padding: 4px 8px;
+  font-size: 12px;
+  pointer-events: none;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+}
+
+/* 다른 논문에서 본 용어 */
+.known-banner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+}
+
+.known-banner p {
+  margin: 0 0 8px;
+}
+
+.known-banner .link-button {
+  font-size: 13px;
+}
+
+.known-banner > button {
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+/* 설정 창 */
+.dialog.settings {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.settings-section {
+  margin: 16px 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.settings-section > .muted {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.settings-section summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.setting {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 0;
+}
+
+.setting input {
+  margin-top: 3px;
+}
+
+.setting-hint {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
 }

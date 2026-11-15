@@ -118,6 +118,7 @@ export function PdfViewer({ paperId }: { paperId: string }) {
   return (
     <div
       className="viewer"
+      data-abbr-scope
       ref={scrollRef}
       onMouseDown={(e) => (downAt.current = { x: e.clientX, y: e.clientY })}
       onMouseUp={handleMouseUp}

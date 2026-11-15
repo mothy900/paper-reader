@@ -26,10 +26,10 @@ def clean_llm_tables(client):
     from sqlmodel import Session, delete
 
     from app.db import engine
-    from app.models import ExplainHistory, LlmCall, LlmResult, UserProfile
+    from app.models import ExplainHistory, KnownTerm, LlmCall, LlmResult, UserProfile
 
     with Session(engine) as session:
-        for table in (LlmResult, LlmCall, ExplainHistory, UserProfile):
+        for table in (LlmResult, LlmCall, ExplainHistory, UserProfile, KnownTerm):
             session.exec(delete(table))
         session.commit()
 
@@ -197,3 +197,35 @@ def test_history_result_404_when_result_was_not_stored(client, paper, fake) -> N
 
     assert client.get(f"/api/papers/{paper['id']}/history/{item['id']}").status_code == 404
     assert client.get(f"/api/papers/{paper['id']}/history/999999").status_code == 404
+
+
+WORD_REPLY = ["<in_paper>a</in_paper><general>b</general><plain>c</plain>"]
+
+
+def test_known_term_from_another_paper_is_shown_without_calling(client, paper, fake) -> None:
+    llm = fake(FakeClient(WORD_REPLY))
+    other = client.post(
+        "/api/papers", files={"file": ("q.pdf", make_paper_pdf(hidden=False) + b"\n% other", "application/pdf")}
+    ).json()
+    client.post(f"/api/papers/{paper['id']}/explain", json={"focus": _abstract_focus(client, paper, text="sparse attention")})
+
+    # 다른 논문에서 같은 용어(대소문자·복수형만 다름)를 고르면 저장된 설명을 보여준다
+    focus = _abstract_focus(client, other, text="sparse attention")
+    focus["text"] = "Sparse attention"
+    events = _events(client.post(f"/api/papers/{other['id']}/explain", json={"focus": focus}))
+    assert len(llm.calls) == 1
+    assert events[0][1]["known"] == {"paper_id": paper["id"], "paper_title": paper["title"], "label": "sparse attention"}
+    assert events[-1][1]["cost_usd"] == 0.0
+    # 기록을 다시 열면 같은 저장된 설명이 나온다
+    item = client.get(f"/api/papers/{other['id']}/history").json()[0]
+    assert client.get(f"/api/papers/{other['id']}/history/{item['id']}").json()["sections"]["plain"] == "c"
+
+    # "이 논문에서의 의미 보기"는 새로 해설한다
+    events = _events(
+        client.post(f"/api/papers/{other['id']}/explain", json={"focus": focus, "skip_known": True})
+    )
+    assert len(llm.calls) == 2
+    assert "known" not in events[0][1]
+    # 같은 논문에서는 저장된 설명 안내 없이 평소처럼 (캐시)
+    events = _events(client.post(f"/api/papers/{paper['id']}/explain", json={"focus": _abstract_focus(client, paper, text="sparse attention")}))
+    assert "known" not in events[0][1] and len(llm.calls) == 2
